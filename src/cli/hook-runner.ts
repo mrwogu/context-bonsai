@@ -1,6 +1,11 @@
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { processLogFile } from '../core/logstrip-parser';
+import { processLogFile, processLogString } from '../core/logstrip-parser';
+import type { LogStripStringResult } from '../core/logstrip-parser';
 import type { CliIo } from './index';
 
 const LOG_FILE_EXTENSIONS: readonly string[] = [
@@ -25,11 +30,8 @@ const CI_MARKER_PATTERN =
 const LINE_PREFIX_PATTERN =
   /^\s*(npm ERR|npm WARN|yarn error|FAIL|PASS|SKIP|RUN|OK|ERR!|WARN!|\[ERROR\]|\[INFO\]|\[WARN\]|\[DEBUG\]|\[FATAL\]|\[TRACE\]|FATAL:|ERROR:|WARNING:)/iu;
 
-const USER_PROMPT_HINT =
-  'LogStrip auto-activation: pasted log output detected. Before analysing, write the pasted content to a temp file and run `logstrip <file> -o <file>.logstrip.log --stats`, then read the compressed output. If logstrip is not installed, suggest `npm i -g logstrip`. Do not analyse the raw pasted logs line-by-line.';
-
 const COMPRESSION_FAILED_HINT =
-  'LogStrip: compression failed for this log file. Analysing raw content.';
+  'LogStrip: compression failed. Analysing raw content.';
 
 interface HookEnvelope {
   hook_event_name?: unknown;
@@ -50,6 +52,38 @@ function isAlreadyCompressed(filePath: string): boolean {
 
 function isSupportedLogFile(filePath: string): boolean {
   return LOG_FILE_EXTENSIONS.some((extension) => filePath.endsWith(extension));
+}
+
+function buildTempLogPath(prompt: string): string {
+  const hash = createHash('sha1').update(prompt).digest('hex').slice(0, 12);
+  return join(tmpdir(), `logstrip-${hash}.logstrip.log`);
+}
+
+function buildBlockReason(
+  result: LogStripStringResult,
+  outputPath: string | null,
+): string {
+  const savings =
+    `${result.savingsPercent.toFixed(0)}% smaller, ` +
+    `~${result.savedTokens} tokens saved`;
+
+  if (outputPath !== null) {
+    return (
+      `LogStrip blocked a raw log paste (~${result.stats.inputLines} lines). ` +
+      `Pasting raw logs wastes tokens, so the prompt was not sent. ` +
+      `A compressed copy (${savings}) was written to ${outputPath}. ` +
+      `Re-send your request pointing the agent at that file, ` +
+      `or paste its contents instead of the raw logs.`
+    );
+  }
+
+  return (
+    `LogStrip blocked a raw log paste (~${result.stats.inputLines} lines, ` +
+    `compresses to ${savings}). Pasting raw logs wastes tokens, so the prompt ` +
+    `was not sent. Save the logs to a file and run ` +
+    '`logstrip <file> -o <file>.logstrip.log`, then re-send referencing the ' +
+    'compressed file or paste its contents.'
+  );
 }
 
 function countMatchingLines(text: string, pattern: RegExp): number {
@@ -178,11 +212,23 @@ async function handleUserPromptSubmit(
     return;
   }
 
+  let compressed: LogStripStringResult;
+  try {
+    compressed = await processLogString(prompt);
+  } catch {
+    return;
+  }
+
+  let outputPath: string | null = buildTempLogPath(prompt);
+  try {
+    await writeFile(outputPath, compressed.output, 'utf8');
+  } catch {
+    outputPath = null;
+  }
+
   await emit(stdout, {
-    hookSpecificOutput: {
-      hookEventName: 'UserPromptSubmit',
-      additionalContext: USER_PROMPT_HINT,
-    },
+    decision: 'block',
+    reason: buildBlockReason(compressed, outputPath),
   });
 }
 

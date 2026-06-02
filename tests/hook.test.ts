@@ -17,6 +17,13 @@ import { runCli, type CliIo } from '../src/cli/index';
 
 import * as parser from '../src/core/logstrip-parser';
 
+const TEMP_ENV_KEYS = ['TMPDIR', 'TMP', 'TEMP'] as const;
+
+function extractLogPath(reason: string): string | null {
+  const match = reason.match(/(\S+logstrip-[0-9a-f]+\.logstrip\.log)/u);
+  return match ? match[1] : null;
+}
+
 const HOOKS_JSON = resolve(__dirname, '../plugins/logstrip/hooks/hooks.json');
 const CURSOR_HOOKS_JSON = resolve(
   __dirname,
@@ -180,12 +187,25 @@ const SINGLE_HEURISTIC = [
 ].join('\n');
 
 let workDir: string;
+const savedTempEnv: Record<string, string | undefined> = {};
 
 beforeAll(async () => {
   workDir = await mkdtemp(join(tmpdir(), 'logstrip-hook-'));
+  for (const key of TEMP_ENV_KEYS) {
+    savedTempEnv[key] = process.env[key];
+    process.env[key] = workDir;
+  }
 });
 
 afterAll(async () => {
+  for (const key of TEMP_ENV_KEYS) {
+    const previous = savedTempEnv[key];
+    if (previous === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = previous;
+    }
+  }
   await rm(workDir, { force: true, recursive: true });
 });
 
@@ -428,56 +448,125 @@ describe('UserPromptSubmit - positive detection', () => {
     const result = await runHook(makeUserPromptSubmitInput(CI_LOG_PASTE));
     expect(result.exitCode).toBe(0);
 
-    const json = parseJson<{
-      hookSpecificOutput: {
-        hookEventName: string;
-        additionalContext: string;
-      };
-    }>(result.stdout);
+    const json = parseJson<{ decision: string; reason: string }>(
+      result.stdout,
+    );
     expect(json).not.toBeNull();
-    expect(json!.hookSpecificOutput.hookEventName).toBe('UserPromptSubmit');
-    expect(json!.hookSpecificOutput.additionalContext).toContain(
-      'logstrip <file>',
-    );
-    expect(json!.hookSpecificOutput.additionalContext).toContain(
-      'pasted log output detected',
-    );
+    expect(json!.decision).toBe('block');
+    expect(json!.reason).toContain('LogStrip blocked');
+    expect(json!.reason).toContain('tokens saved');
   });
 
   it('detects Java stack trace paste (log levels + stacks)', async () => {
     const result = await runHook(makeUserPromptSubmitInput(JAVA_STACK_PASTE));
     expect(result.exitCode).toBe(0);
 
-    const json = parseJson<{
-      hookSpecificOutput: { additionalContext: string };
-    }>(result.stdout);
-    expect(json).not.toBeNull();
-    expect(json!.hookSpecificOutput.additionalContext).toContain(
-      'pasted log output detected',
+    const json = parseJson<{ decision: string; reason: string }>(
+      result.stdout,
     );
+    expect(json).not.toBeNull();
+    expect(json!.decision).toBe('block');
   });
 
   it('detects npm build error paste (CI markers)', async () => {
     const result = await runHook(makeUserPromptSubmitInput(NPM_BUILD_PASTE));
     expect(result.exitCode).toBe(0);
 
-    const json = parseJson<{
-      hookSpecificOutput: { additionalContext: string };
-    }>(result.stdout);
-    expect(json).not.toBeNull();
-    expect(json!.hookSpecificOutput.additionalContext).toContain(
-      'pasted log output detected',
+    const json = parseJson<{ decision: string; reason: string }>(
+      result.stdout,
     );
+    expect(json).not.toBeNull();
+    expect(json!.decision).toBe('block');
   });
 
   it('detects vitest/jest result paste (FAIL + PASS + SKIP)', async () => {
     const result = await runHook(makeUserPromptSubmitInput(MIXED_CI_PASTE));
     expect(result.exitCode).toBe(0);
 
-    const json = parseJson<{
-      hookSpecificOutput: { additionalContext: string };
-    }>(result.stdout);
+    const json = parseJson<{ decision: string }>(result.stdout);
     expect(json).not.toBeNull();
+    expect(json!.decision).toBe('block');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// UserPromptSubmit - blocking + temp file
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('UserPromptSubmit - blocking + temp file', () => {
+  it('blocks the paste and writes a compressed temp file', async () => {
+    const result = await runHook(makeUserPromptSubmitInput(CI_LOG_PASTE));
+    expect(result.exitCode).toBe(0);
+
+    const json = parseJson<{ decision: string; reason: string }>(
+      result.stdout,
+    );
+    expect(json).not.toBeNull();
+    expect(json!.decision).toBe('block');
+
+    const path = extractLogPath(json!.reason);
+    expect(path).not.toBeNull();
+    expect(path!.endsWith('.logstrip.log')).toBe(true);
+
+    const compressed = await readFile(path!, 'utf8');
+    expect(compressed).toContain('[ERROR]');
+    expect(compressed.length).toBeLessThan(CI_LOG_PASTE.length);
+  });
+
+  it('reuses the same temp path for an identical paste (content-hashed)', async () => {
+    const first = await runHook(makeUserPromptSubmitInput(CI_LOG_PASTE));
+    const second = await runHook(makeUserPromptSubmitInput(CI_LOG_PASTE));
+
+    const firstPath = extractLogPath(
+      parseJson<{ reason: string }>(first.stdout)!.reason,
+    );
+    const secondPath = extractLogPath(
+      parseJson<{ reason: string }>(second.stdout)!.reason,
+    );
+    expect(firstPath).not.toBeNull();
+    expect(firstPath).toBe(secondPath);
+  });
+
+  it('fails open (no block) when processLogString throws', async () => {
+    vi.spyOn(parser, 'processLogString').mockRejectedValueOnce(
+      new Error('simulated compression failure'),
+    );
+
+    const result = await runHook(makeUserPromptSubmitInput(CI_LOG_PASTE));
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe('');
+  });
+
+  it('blocks with manual instructions when the temp dir is not writable', async () => {
+    const blocker = join(workDir, 'not-a-writable-dir');
+    await writeFile(blocker, 'x');
+
+    const saved = TEMP_ENV_KEYS.map((key) => process.env[key]);
+    for (const key of TEMP_ENV_KEYS) {
+      process.env[key] = blocker;
+    }
+
+    try {
+      const result = await runHook(makeUserPromptSubmitInput(CI_LOG_PASTE));
+      expect(result.exitCode).toBe(0);
+
+      const json = parseJson<{ decision: string; reason: string }>(
+        result.stdout,
+      );
+      expect(json).not.toBeNull();
+      expect(json!.decision).toBe('block');
+      expect(json!.reason).toContain('logstrip <file>');
+      expect(extractLogPath(json!.reason)).toBeNull();
+    } finally {
+      TEMP_ENV_KEYS.forEach((key, index) => {
+        const previous = saved[index];
+        if (previous === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = previous;
+        }
+      });
+    }
   });
 });
 
