@@ -20,7 +20,7 @@ jobs:
         node-version: [20.x, 22.x, 24.x]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -116,7 +116,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download action artifact
         uses: actions/download-artifact@v4
