@@ -76,8 +76,14 @@ function runHook(command, env, input, label) {
   return JSON.parse(result.stdout);
 }
 
-function smokePreToolUse(command, pluginRoot, env, label) {
-  const fixtureDir = join(pluginRoot, 'fixtures', label.replaceAll(/[^\w-]/g, '-'));
+function smokePreToolUse(command, pluginRoot, env, label, options) {
+  const eventName = options?.eventName ?? 'PreToolUse';
+  const toolName = options?.toolName ?? 'Read';
+  const fixtureDir = join(
+    pluginRoot,
+    'fixtures',
+    `${label.replaceAll(/[^\w-]/g, '-')}-${eventName}-${toolName}`,
+  );
   mkdirSync(fixtureDir, { recursive: true });
   const inputPath = join(fixtureDir, 'raw.log');
   writeFileSync(inputPath, rawLog);
@@ -86,16 +92,28 @@ function smokePreToolUse(command, pluginRoot, env, label) {
     command,
     env,
     {
-      hook_event_name: 'PreToolUse',
-      tool_name: 'Read',
+      hook_event_name: eventName,
+      tool_name: toolName,
       tool_input: { file_path: inputPath },
       session_id: 'plugin-smoke',
     },
-    label,
+    `${label} [${eventName}/${toolName}]`,
   );
 
   if (preToolUseResult?.hookSpecificOutput?.permissionDecision !== 'deny') {
-    fail(`${label} PreToolUse hook did not deny the raw read`);
+    fail(
+      `${label} [${eventName}/${toolName}] missing Claude-style hookSpecificOutput.permissionDecision='deny'`,
+    );
+  }
+  if (preToolUseResult?.permission !== 'deny') {
+    fail(
+      `${label} [${eventName}/${toolName}] missing Cursor-style permission='deny'`,
+    );
+  }
+  if (typeof preToolUseResult?.user_message !== 'string') {
+    fail(
+      `${label} [${eventName}/${toolName}] missing Cursor-style user_message`,
+    );
   }
 
   const outputPath = `${inputPath}.logstrip.log`;
@@ -125,23 +143,46 @@ function smokeSharedHooks(manifestPath, pluginRoot, manifest, env) {
   }
 
   smokePreToolUse(preToolUseCommand, pluginRoot, env, manifestPath);
+  // Copilot CLI / VS Code uses "view" as the file-read tool; the matcher in
+  // hooks.json says "Read" but VS Code ignores matcher values, so make sure
+  // the runtime handler accepts the camelCase / alternate tool name too.
+  smokePreToolUse(preToolUseCommand, pluginRoot, env, manifestPath, {
+    toolName: 'view',
+  });
 
-  const userPromptResult = runHook(
-    userPromptCommand,
-    env,
-    {
-      hook_event_name: 'UserPromptSubmit',
-      prompt: rawLog,
-      session_id: 'plugin-smoke',
-    },
-    manifestPath,
-  );
+  for (const eventName of ['UserPromptSubmit', 'userPromptSubmitted']) {
+    const userPromptResult = runHook(
+      userPromptCommand,
+      env,
+      {
+        hook_event_name: eventName,
+        prompt: rawLog,
+        session_id: 'plugin-smoke',
+      },
+      `${manifestPath} [${eventName}]`,
+    );
 
-  if (
-    typeof userPromptResult?.hookSpecificOutput?.additionalContext !== 'string'
-    || !userPromptResult.hookSpecificOutput.additionalContext.includes('logstrip <file>')
-  ) {
-    fail(`${manifestPath} UserPromptSubmit hook did not inject the expected context`);
+    if (
+      userPromptResult?.decision !== 'block'
+      || typeof userPromptResult?.reason !== 'string'
+      || !userPromptResult.reason.includes('LogStrip blocked')
+    ) {
+      fail(
+        `${manifestPath} [${eventName}] hook did not emit decision='block'`,
+      );
+    }
+    // Copilot CLI ignores decision-control on userPromptSubmitted; verify the
+    // additionalContext fallback so the model still receives the warning.
+    if (
+      typeof userPromptResult?.hookSpecificOutput?.additionalContext !== 'string'
+      || !userPromptResult.hookSpecificOutput.additionalContext.includes(
+        'LogStrip blocked',
+      )
+    ) {
+      fail(
+        `${manifestPath} [${eventName}] missing Copilot fallback hookSpecificOutput.additionalContext`,
+      );
+    }
   }
 }
 
@@ -154,12 +195,55 @@ function smokeCursorHooks(manifestPath, pluginRoot, manifest, env) {
     readFileSync(resolve(pluginRoot, manifest.hooks), 'utf8'),
   );
   const preToolUseCommand = hooksConfig.hooks?.preToolUse?.[0]?.command;
+  const beforeSubmitPromptCommand =
+    hooksConfig.hooks?.beforeSubmitPrompt?.[0]?.command;
 
   if (typeof preToolUseCommand !== 'string') {
     fail(`${manifestPath} cursor hooks config is missing the preToolUse command`);
   }
+  if (typeof beforeSubmitPromptCommand !== 'string') {
+    fail(
+      `${manifestPath} cursor hooks config is missing the beforeSubmitPrompt command`,
+    );
+  }
 
-  smokePreToolUse(preToolUseCommand, pluginRoot, env, manifestPath);
+  // Cursor invokes hooks with camelCase hook_event_name="preToolUse"; make sure
+  // the handler recognises that dialect and still emits Cursor-native fields.
+  smokePreToolUse(preToolUseCommand, pluginRoot, env, manifestPath, {
+    eventName: 'preToolUse',
+  });
+
+  const beforeSubmitPromptResult = runHook(
+    beforeSubmitPromptCommand,
+    env,
+    {
+      hook_event_name: 'beforeSubmitPrompt',
+      prompt: rawLog,
+      session_id: 'plugin-smoke',
+    },
+    `${manifestPath} [beforeSubmitPrompt]`,
+  );
+
+  if (beforeSubmitPromptResult?.continue !== false) {
+    fail(
+      `${manifestPath} beforeSubmitPrompt hook did not emit continue=false`,
+    );
+  }
+  if (
+    typeof beforeSubmitPromptResult?.user_message !== 'string'
+    || !beforeSubmitPromptResult.user_message.includes('LogStrip blocked')
+  ) {
+    fail(
+      `${manifestPath} beforeSubmitPrompt hook missing user_message with block reason`,
+    );
+  }
+  // Claude's `continue: false` aborts the entire session; emitting both
+  // would corrupt multi-host setups, so explicitly assert Cursor-only shape.
+  if (beforeSubmitPromptResult?.decision !== undefined) {
+    fail(
+      `${manifestPath} beforeSubmitPrompt hook must not emit Claude-style "decision"`,
+    );
+  }
 }
 
 function main() {
