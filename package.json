@@ -1,6 +1,6 @@
 {
   "name": "logstrip",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Stream-based CLI that trims noisy server logs, build pipelines, vulnerability scanners, and container workloads down to the diagnostic context LLM agents actually need.",
   "private": false,
   "license": "MIT",

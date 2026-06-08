@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.10.0](https://github.com/mrwogu/logstrip/compare/v1.9.0...v1.10.0) (2026-06-08)
+
+
+### Features
+
+* **cli:** block raw log pastes in UserPromptSubmit hook ([b3c1f33](https://github.com/mrwogu/logstrip/commit/b3c1f33e02d1fba69f60690f72fd93435333b180))
+
+
+### Bug Fixes
+
+* **hook:** support every targeted agent dialect ([a4c3297](https://github.com/mrwogu/logstrip/commit/a4c3297ec9dff517fc6d0b60436e7c9646d0c3a6))
+
 ## [1.9.0](https://github.com/mrwogu/logstrip/compare/v1.8.0...v1.9.0) (2026-05-30)
 
 
