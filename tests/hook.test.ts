@@ -233,6 +233,11 @@ describe('PreToolUse - extension matching', () => {
         permissionDecision: string;
         permissionDecisionReason: string;
       };
+      permission: string;
+      permissionDecision: string;
+      permissionDecisionReason: string;
+      user_message: string;
+      agent_message: string;
     }>(result.stdout);
     expect(json).not.toBeNull();
     expect(json!.hookSpecificOutput.permissionDecision).toBe('deny');
@@ -243,6 +248,11 @@ describe('PreToolUse - extension matching', () => {
     expect(json!.hookSpecificOutput.permissionDecisionReason).toContain(
       filePath,
     );
+    expect(json!.permission).toBe('deny');
+    expect(json!.permissionDecision).toBe('deny');
+    expect(json!.permissionDecisionReason).toContain(filePath);
+    expect(json!.user_message).toContain(filePath);
+    expect(json!.agent_message).toContain(filePath);
   });
 
   const skipExtensions = ['.ts', '.js', '.json', '.yml', '.md', '.css', '.py'];
@@ -365,6 +375,15 @@ describe('PreToolUse - missing file_path', () => {
       hook_event_name: 'PreToolUse',
       tool_name: 'Read',
       tool_input: null,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe('');
+  });
+
+  it('skips when tool_name field is entirely absent', async () => {
+    const result = await runHook({
+      hook_event_name: 'PreToolUse',
+      tool_input: { file_path: '/tmp/some.log' },
     });
     expect(result.exitCode).toBe(0);
     expect(result.stdout.trim()).toBe('');
@@ -701,6 +720,158 @@ describe('UserPromptSubmit - boundary conditions', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
+// Cross-host compatibility (Cursor / Copilot / camelCase aliases)
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('Cross-host compatibility', () => {
+  it('PreToolUse: camelCase hook_event_name triggers deny (Cursor native)', async () => {
+    const filePath = join(workDir, 'cursor-camel.log');
+    await writeFile(filePath, CI_LOG_PASTE);
+
+    const result = await runHook({
+      hook_event_name: 'preToolUse',
+      tool_name: 'Read',
+      tool_input: { file_path: filePath },
+    });
+    expect(result.exitCode).toBe(0);
+
+    const json = parseJson<{
+      permission: string;
+      hookSpecificOutput: { permissionDecision: string };
+    }>(result.stdout);
+    expect(json).not.toBeNull();
+    expect(json!.permission).toBe('deny');
+    expect(json!.hookSpecificOutput.permissionDecision).toBe('deny');
+  });
+
+  it('PreToolUse: hookEventName camelCase top-level key is accepted', async () => {
+    const filePath = join(workDir, 'camel-top-level.log');
+    await writeFile(filePath, CI_LOG_PASTE);
+
+    const result = await runHook({
+      hookEventName: 'PreToolUse',
+      tool_name: 'Read',
+      tool_input: { file_path: filePath },
+    });
+    expect(result.exitCode).toBe(0);
+
+    const json = parseJson<{ permission: string }>(result.stdout);
+    expect(json).not.toBeNull();
+    expect(json!.permission).toBe('deny');
+  });
+
+  it('PreToolUse: Copilot CLI "view" tool name triggers deny on log file', async () => {
+    const filePath = join(workDir, 'copilot-view.log');
+    await writeFile(filePath, CI_LOG_PASTE);
+
+    const result = await runHook({
+      hook_event_name: 'PreToolUse',
+      tool_name: 'view',
+      tool_input: { file_path: filePath },
+    });
+    expect(result.exitCode).toBe(0);
+
+    const json = parseJson<{ permission: string }>(result.stdout);
+    expect(json).not.toBeNull();
+    expect(json!.permission).toBe('deny');
+  });
+
+  it('PreToolUse: camelCase toolName + toolInput.filePath work together', async () => {
+    const filePath = join(workDir, 'copilot-camel.log');
+    await writeFile(filePath, CI_LOG_PASTE);
+
+    const result = await runHook({
+      hook_event_name: 'PreToolUse',
+      toolName: 'Read',
+      toolInput: { filePath },
+    });
+    expect(result.exitCode).toBe(0);
+
+    const json = parseJson<{ permission: string }>(result.stdout);
+    expect(json).not.toBeNull();
+    expect(json!.permission).toBe('deny');
+  });
+
+  it('PreToolUse: unknown tool name (Copilot Bash) skips silently', async () => {
+    const result = await runHook({
+      hook_event_name: 'PreToolUse',
+      tool_name: 'bash',
+      tool_input: { command: 'cat /tmp/foo.log' },
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe('');
+  });
+
+  it('UserPromptSubmit: camelCase event "userPromptSubmit" triggers block', async () => {
+    const result = await runHook({
+      hook_event_name: 'userPromptSubmit',
+      prompt: CI_LOG_PASTE,
+    });
+    expect(result.exitCode).toBe(0);
+
+    const json = parseJson<{
+      decision: string;
+      hookSpecificOutput: { additionalContext: string };
+    }>(result.stdout);
+    expect(json).not.toBeNull();
+    expect(json!.decision).toBe('block');
+    expect(json!.hookSpecificOutput.additionalContext).toContain(
+      'LogStrip blocked',
+    );
+  });
+
+  it('UserPromptSubmit: Copilot CLI "userPromptSubmitted" event triggers block', async () => {
+    const result = await runHook({
+      hook_event_name: 'userPromptSubmitted',
+      prompt: CI_LOG_PASTE,
+    });
+    expect(result.exitCode).toBe(0);
+
+    const json = parseJson<{
+      decision: string;
+      reason: string;
+      hookSpecificOutput: { additionalContext: string };
+    }>(result.stdout);
+    expect(json).not.toBeNull();
+    expect(json!.decision).toBe('block');
+    expect(json!.reason).toContain('LogStrip blocked');
+    expect(json!.hookSpecificOutput.additionalContext).toContain(
+      'LogStrip blocked',
+    );
+  });
+
+  it('Cursor beforeSubmitPrompt: blocks with continue=false + user_message', async () => {
+    const result = await runHook({
+      hook_event_name: 'beforeSubmitPrompt',
+      prompt: CI_LOG_PASTE,
+    });
+    expect(result.exitCode).toBe(0);
+
+    const json = parseJson<{
+      continue: boolean;
+      user_message: string;
+      decision?: string;
+    }>(result.stdout);
+    expect(json).not.toBeNull();
+    expect(json!.continue).toBe(false);
+    expect(json!.user_message).toContain('LogStrip blocked');
+    // Must NOT emit Claude-style `decision: 'block'` for Cursor; the
+    // Claude-only `continue: false` semantics would otherwise abort the
+    // entire Claude session in a multi-host setup.
+    expect(json!.decision).toBeUndefined();
+  });
+
+  it('Cursor beforeSubmitPrompt: short prompt is silently allowed', async () => {
+    const result = await runHook({
+      hook_event_name: 'beforeSubmitPrompt',
+      prompt: SHORT_NON_LOG,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe('');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
 // Unknown events
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -846,6 +1017,13 @@ describe('hook config files', () => {
     expect(preToolUse.matcher).toBe('Read');
     expect(preToolUse.command).toBe(HOOK_COMMAND);
     expect(preToolUse.timeout).toBeTypeOf('number');
+
+    expect(config.hooks.beforeSubmitPrompt).toBeDefined();
+    expect(config.hooks.beforeSubmitPrompt).toBeInstanceOf(Array);
+    const beforeSubmitPrompt = config.hooks.beforeSubmitPrompt[0];
+    expect(beforeSubmitPrompt.matcher).toBe('UserPromptSubmit');
+    expect(beforeSubmitPrompt.command).toBe(HOOK_COMMAND);
+    expect(beforeSubmitPrompt.timeout).toBeTypeOf('number');
   });
 
   it('factory plugin manifest explicitly wires the shared hooks file', async () => {

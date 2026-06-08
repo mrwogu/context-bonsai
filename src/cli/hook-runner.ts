@@ -33,17 +33,39 @@ const LINE_PREFIX_PATTERN =
 const COMPRESSION_FAILED_HINT =
   'LogStrip: compression failed. Analysing raw content.';
 
+const PRE_TOOL_USE_EVENT_ALIASES: ReadonlySet<string> = new Set([
+  'pretooluse',
+]);
+const CLAUDE_USER_PROMPT_SUBMIT_ALIASES: ReadonlySet<string> = new Set([
+  'userpromptsubmit',
+  'userpromptsubmitted',
+]);
+const CURSOR_USER_PROMPT_SUBMIT_ALIASES: ReadonlySet<string> = new Set([
+  'beforesubmitprompt',
+]);
+const READ_TOOL_ALIASES: ReadonlySet<string> = new Set([
+  'read',
+  'view',
+]);
+
 interface HookEnvelope {
   hook_event_name?: unknown;
+  hookEventName?: unknown;
 }
 
 interface PreToolUseEvent extends HookEnvelope {
   tool_name?: unknown;
-  tool_input?: { file_path?: unknown } | null;
+  toolName?: unknown;
+  tool_input?: { file_path?: unknown; filePath?: unknown } | null;
+  toolInput?: { file_path?: unknown; filePath?: unknown } | null;
 }
 
 interface UserPromptSubmitEvent extends HookEnvelope {
   prompt?: unknown;
+}
+
+function normalizeEventName(value: unknown): string {
+  return typeof value === 'string' ? value.toLowerCase() : '';
 }
 
 function isAlreadyCompressed(filePath: string): boolean {
@@ -126,16 +148,77 @@ async function readStdinJson(stdin: NodeJS.ReadableStream): Promise<unknown> {
   }
 }
 
+function extractToolName(event: PreToolUseEvent): string | null {
+  if (typeof event.tool_name === 'string') return event.tool_name;
+  if (typeof event.toolName === 'string') return event.toolName;
+  return null;
+}
+
+function extractFilePath(event: PreToolUseEvent): string | null {
+  const candidates = [event.tool_input, event.toolInput];
+  for (const input of candidates) {
+    if (input == null) continue;
+    if (typeof input.file_path === 'string' && input.file_path.length > 0) {
+      return input.file_path;
+    }
+    if (typeof input.filePath === 'string' && input.filePath.length > 0) {
+      return input.filePath;
+    }
+  }
+  return null;
+}
+
+function buildDenyPayload(reason: string): Record<string, unknown> {
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'deny',
+      permissionDecisionReason: reason,
+    },
+    permission: 'deny',
+    permissionDecision: 'deny',
+    permissionDecisionReason: reason,
+    user_message: reason,
+    agent_message: reason,
+  };
+}
+
+type UserPromptDialect = 'claude' | 'cursor';
+
+function buildBlockPayload(
+  reason: string,
+  dialect: UserPromptDialect,
+): Record<string, unknown> {
+  if (dialect === 'cursor') {
+    // Cursor's beforeSubmitPrompt blocks with `continue: false`; emitting
+    // Claude's `continue` flag elsewhere would stop the whole session, so we
+    // branch on the originating event name.
+    return {
+      continue: false,
+      user_message: reason,
+    };
+  }
+  return {
+    decision: 'block',
+    reason,
+    hookSpecificOutput: {
+      hookEventName: 'UserPromptSubmit',
+      additionalContext: reason,
+    },
+  };
+}
+
 async function handlePreToolUse(
   event: PreToolUseEvent,
   stdout: NodeJS.WritableStream,
 ): Promise<void> {
-  if (event.tool_name !== 'Read') {
+  const toolName = extractToolName(event);
+  if (toolName === null || !READ_TOOL_ALIASES.has(toolName.toLowerCase())) {
     return;
   }
 
-  const filePath = event.tool_input?.file_path;
-  if (typeof filePath !== 'string' || filePath.length === 0) {
+  const filePath = extractFilePath(event);
+  if (filePath === null) {
     return;
   }
 
@@ -162,18 +245,16 @@ async function handlePreToolUse(
     return;
   }
 
-  await emit(stdout, {
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: 'deny',
-      permissionDecisionReason: `LogStrip: auto-compressed ${filePath} -> ${outputFile}. Read the compressed .logstrip.log file instead.`,
-    },
-  });
+  const reason =
+    `LogStrip: auto-compressed ${filePath} -> ${outputFile}. ` +
+    'Read the compressed .logstrip.log file instead.';
+  await emit(stdout, buildDenyPayload(reason));
 }
 
 async function handleUserPromptSubmit(
   event: UserPromptSubmitEvent,
   stdout: NodeJS.WritableStream,
+  dialect: UserPromptDialect,
 ): Promise<void> {
   const prompt = event.prompt;
   if (typeof prompt !== 'string' || prompt.length === 0) {
@@ -226,10 +307,16 @@ async function handleUserPromptSubmit(
     outputPath = null;
   }
 
-  await emit(stdout, {
-    decision: 'block',
-    reason: buildBlockReason(compressed, outputPath),
-  });
+  await emit(
+    stdout,
+    buildBlockPayload(buildBlockReason(compressed, outputPath), dialect),
+  );
+}
+
+function resolveEventName(envelope: HookEnvelope): string {
+  const explicit = normalizeEventName(envelope.hook_event_name);
+  if (explicit.length > 0) return explicit;
+  return normalizeEventName(envelope.hookEventName);
 }
 
 export async function runHookCommand(io: CliIo): Promise<number> {
@@ -239,14 +326,27 @@ export async function runHookCommand(io: CliIo): Promise<number> {
   }
 
   const envelope = parsed as HookEnvelope;
-  switch (envelope.hook_event_name) {
-    case 'PreToolUse':
-      await handlePreToolUse(parsed as PreToolUseEvent, io.stdout);
-      return 0;
-    case 'UserPromptSubmit':
-      await handleUserPromptSubmit(parsed as UserPromptSubmitEvent, io.stdout);
-      return 0;
-    default:
-      return 0;
+  const eventName = resolveEventName(envelope);
+
+  if (PRE_TOOL_USE_EVENT_ALIASES.has(eventName)) {
+    await handlePreToolUse(parsed as PreToolUseEvent, io.stdout);
+    return 0;
   }
+  if (CLAUDE_USER_PROMPT_SUBMIT_ALIASES.has(eventName)) {
+    await handleUserPromptSubmit(
+      parsed as UserPromptSubmitEvent,
+      io.stdout,
+      'claude',
+    );
+    return 0;
+  }
+  if (CURSOR_USER_PROMPT_SUBMIT_ALIASES.has(eventName)) {
+    await handleUserPromptSubmit(
+      parsed as UserPromptSubmitEvent,
+      io.stdout,
+      'cursor',
+    );
+    return 0;
+  }
+  return 0;
 }

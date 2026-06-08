@@ -7,6 +7,13 @@
         "matcher": "Read",
         "timeout": 10
       }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "logstrip hook",
+        "matcher": "UserPromptSubmit",
+        "timeout": 5
+      }
     ]
   }
 }
