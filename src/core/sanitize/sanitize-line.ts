@@ -1,4 +1,5 @@
 import { groupHttpStatusCodes } from '../formats/format-detector.js';
+import { maskHighEntropyTokens } from './entropy-secret.js';
 
 const UUID_PATTERN =
   /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/giu;
@@ -90,44 +91,78 @@ export function sanitizeLine(line: string, preserveIdSuffix = 0): string {
       ? (m: string) => `[HASH:${m.slice(-preserveIdSuffix)}]`
       : () => '[HASH]';
 
-  let result = line
-    .replace(ANSI_ESCAPE_PATTERN, '')
-    .replace(UUID_PATTERN, uuidReplacement)
-    .replace(UTC_TIME_PATTERN, '[TIME]')
-    .replace(APACHE_ERROR_TIME_PATTERN, '[TIME]')
-    .replace(COMMON_LOG_TIME_PATTERN, '[TIME]')
-    .replace(NGINX_ERROR_TIME_PATTERN, '[TIME]')
-    .replace(ISO_TIME_PATTERN, '[TIME]')
-    .replace(IPV4_WITH_PORT_PATTERN, '[IP]:[PORT]')
-    .replace(IPV4_PATTERN, '[IP]')
-    .replace(IPV6_PATTERN, '[IPV6]')
-    // Secrets (before hex/hash to avoid those patterns consuming tokens)
-    .replace(CONNECTION_STRING_PATTERN, (match, pwd) =>
+  // Each expensive regex is gated by a cheap substring implied by the
+  // pattern itself, so the common case (a plain log line) pays for a few
+  // includes() calls instead of ~25 regex scans.
+  let result = line;
+  if (result.includes('\u001b')) result = result.replace(ANSI_ESCAPE_PATTERN, '');
+  if (result.includes('-')) {
+    result = result
+      .replace(UUID_PATTERN, uuidReplacement)
+      .replace(ISO_TIME_PATTERN, '[TIME]');
+  }
+  if (result.includes('GMT') || result.includes('UTC')) {
+    result = result.replace(UTC_TIME_PATTERN, '[TIME]');
+  }
+  if (result.includes('[')) {
+    result = result.replace(APACHE_ERROR_TIME_PATTERN, '[TIME]');
+  }
+  if (result.includes('/')) {
+    result = result
+      .replace(COMMON_LOG_TIME_PATTERN, '[TIME]')
+      .replace(NGINX_ERROR_TIME_PATTERN, '[TIME]');
+  }
+  if (result.includes('.')) {
+    result = result
+      .replace(IPV4_WITH_PORT_PATTERN, '[IP]:[PORT]')
+      .replace(IPV4_PATTERN, '[IP]');
+  }
+  if (result.includes(':')) {
+    result = result.replace(IPV6_PATTERN, '[IPV6]');
+  }
+  // Secrets (before hex/hash to avoid those patterns consuming tokens)
+  if (result.includes('://')) {
+    result = result.replace(CONNECTION_STRING_PATTERN, (match, pwd: string) =>
       match.replace(pwd, '[REDACTED]'),
-    )
-    .replace(GITHUB_TOKEN_PATTERN, '[REDACTED]')
-    .replace(JWT_TOKEN_PATTERN, '[JWT]')
-    .replace(SLACK_TOKEN_PATTERN, '[REDACTED]')
-    .replace(STRIPE_KEY_PATTERN, '[REDACTED]')
-    .replace(NPM_TOKEN_PATTERN, '[REDACTED]')
-    .replace(GOOGLE_API_KEY_PATTERN, '[REDACTED]')
-    .replace(TWILIO_KEY_PATTERN, '[REDACTED]')
-    .replace(SENDGRID_KEY_PATTERN, '[REDACTED]')
-    .replace(AUTHORIZATION_HEADER_PATTERN, 'Authorization: [REDACTED]')
+    );
+  }
+  if (result.includes('gh')) result = result.replace(GITHUB_TOKEN_PATTERN, '[REDACTED]');
+  if (result.includes('eyJ')) result = result.replace(JWT_TOKEN_PATTERN, '[JWT]');
+  if (result.includes('xox')) result = result.replace(SLACK_TOKEN_PATTERN, '[REDACTED]');
+  if (result.includes('_live_') || result.includes('_test_')) {
+    result = result.replace(STRIPE_KEY_PATTERN, '[REDACTED]');
+  }
+  if (result.includes('npm_')) result = result.replace(NPM_TOKEN_PATTERN, '[REDACTED]');
+  if (result.includes('AIza')) result = result.replace(GOOGLE_API_KEY_PATTERN, '[REDACTED]');
+  if (result.includes('SK') || result.includes('AC')) {
+    result = result.replace(TWILIO_KEY_PATTERN, '[REDACTED]');
+  }
+  if (result.includes('SG.')) result = result.replace(SENDGRID_KEY_PATTERN, '[REDACTED]');
+  if (result.includes('uthorization')) {
+    result = result.replace(AUTHORIZATION_HEADER_PATTERN, 'Authorization: [REDACTED]');
+  }
+  result = result
     .replace(SECRET_FIELD_PATTERN, (match) => {
       const sepIdx = match.search(/[:=]\s*/u);
       const sepEnd = match.slice(sepIdx).match(/^[:=]\s*/u)![0].length;
       return `${match.slice(0, sepIdx + sepEnd)}[REDACTED]`;
     })
-    .replace(K8S_RELATIVE_DURATION_PATTERN, '[AGO]')
-    .replace(EMAIL_PATTERN, '[EMAIL]')
+    .replace(K8S_RELATIVE_DURATION_PATTERN, '[AGO]');
+  if (result.includes('@')) result = result.replace(EMAIL_PATTERN, '[EMAIL]');
+  result = result
     .replace(HEX_HASH_PATTERN, hexHashReplacement)
-    .replace(ALPHANUMERIC_HASH_PATTERN, alnumHashReplacement)
-    .replace(AWS_ACCESS_KEY_PATTERN, '[REDACTED]')
-    .replace(AWS_ARN_ACCOUNT_PATTERN, (match, accountId) =>
+    .replace(ALPHANUMERIC_HASH_PATTERN, alnumHashReplacement);
+  if (result.includes('AKIA') || result.includes('ABIA') || result.includes('ASIA')) {
+    result = result.replace(AWS_ACCESS_KEY_PATTERN, '[REDACTED]');
+  }
+  if (result.includes('arn:aws:')) {
+    result = result.replace(AWS_ARN_ACCOUNT_PATTERN, (match, accountId: string) =>
       match.replace(accountId, '[ACCOUNT]'),
-    )
-    .replace(/[ \t]+$/u, '');
+    );
+  }
+  // High-entropy fallback for credentials no vendor pattern recognizes.
+  result = maskHighEntropyTokens(result);
+  result = result.replace(/[ \t]+$/u, '');
 
   // HTTP status code grouping
   result = groupHttpStatusCodes(result);

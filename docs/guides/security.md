@@ -39,8 +39,16 @@ LogStrip detects and redacts known credential patterns:
 | AWS access keys (`AKIA`, `ABIA`, `ASIA`) | `[REDACTED]` | `AKIAIOSFODNN7...` |
 | AWS ARN account IDs | `[ACCOUNT]` | `arn:aws:s3:::123456789012:...` |
 | PEM private key blocks | `[PEM PRIVATE KEY REDACTED]` | `-----BEGIN RSA PRIVATE KEY-----` |
+| High-entropy tokens (fallback) | `[REDACTED]` | `3kF9mQ2xY7LpR4wZ8tN1...` |
 
 Multi-line PEM private key blocks are collapsed to a single `[PEM PRIVATE KEY REDACTED]` marker, with the key body fully removed.
+
+After the vendor-specific patterns run, an entropy-based fallback masks any
+remaining random-looking token of 20+ characters (Shannon entropy ≥ 4.2
+bits/char with both letters and digits, plus mixed case or base64
+punctuation). This catches credentials in formats LogStrip has no dedicated
+pattern for, while leaving file paths, kebab-case identifiers and pod names
+untouched.
 
 ## What is not guaranteed
 
