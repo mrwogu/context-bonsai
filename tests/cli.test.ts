@@ -725,6 +725,14 @@ describe('runCli', () => {
     expect(opts2.templateMining).toBe(false);
   });
 
+  it('enables JSON report detection by default and disables it via --no-json-report', () => {
+    const opts = parseCliOptions(['raw.log']);
+    expect(opts.jsonReport).toBe(true);
+
+    const opts2 = parseCliOptions(['raw.log', '--no-json-report']);
+    expect(opts2.jsonReport).toBe(false);
+  });
+
   it('parses --max-stack-frames including the 0 = unlimited sentinel', () => {
     const opts = parseCliOptions(['raw.log', '--max-stack-frames', '5']);
     expect(opts.maxStackFrames).toBe(5);

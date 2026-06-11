@@ -78,6 +78,11 @@ Options:
       --no-template-mining Disable folding of near-identical lines that
                            differ only in a number after a generic word
                            label (e.g. "Retrying job 17" / "Retrying job 18").
+      --no-json-report     Disable auto-detection of structured JSON documents
+                           (test reports, scanner exports). Detected documents
+                           are compressed semantically - repeated entries
+                           grouped, duplicate fields referenced, empty fields
+                           pruned - and stay valid JSON.
       --preserve-id-suffix <N> Keep the last N chars of redacted UUIDs/hashes
                            (e.g. [ID:74000]) instead of fully masking. 0-16,
                            0 masks fully. Default: 0.
@@ -129,6 +134,7 @@ export interface CliOptions {
   adaptiveContext: boolean;
   maxStackFrames?: number;
   templateMining: boolean;
+  jsonReport: boolean;
   telemetry: boolean;
   help: boolean;
   version: boolean;
@@ -195,6 +201,7 @@ export function parseCliOptions(argv: readonly string[]): CliOptions {
         'no-adaptive-context': { type: 'boolean', default: false },
         'max-stack-frames': { type: 'string' },
         'no-template-mining': { type: 'boolean', default: false },
+        'no-json-report': { type: 'boolean', default: false },
         'max-line-length': { type: 'string' },
         timeout: { type: 'string' },
         progress: { type: 'boolean', default: false },
@@ -375,6 +382,7 @@ export function parseCliOptions(argv: readonly string[]): CliOptions {
     adaptiveContext: parsed.values['no-adaptive-context'] !== true,
     maxStackFrames,
     templateMining: parsed.values['no-template-mining'] !== true,
+    jsonReport: parsed.values['no-json-report'] !== true,
     telemetry: parsed.values.telemetry === true,
     help: parsed.values.help === true,
     version: parsed.values.version === true,
@@ -568,6 +576,7 @@ export async function runCli(
       adaptiveContext: options.adaptiveContext ? undefined : false,
       maxStackFrames: options.maxStackFrames,
       templateMining: options.templateMining,
+      jsonReport: options.jsonReport,
     };
     result = await processLogStreamWithTimeout(
       input,

@@ -1,0 +1,106 @@
+{
+  "[logstrip:meta]": "\"[logstrip:= f]\" repeats the text of sibling field f; empty fields pruned; \"[logstrip:group]\" collapses entries identical except for the listed variant fields",
+  "summary": {
+    "failed": 10,
+    "broken": 0,
+    "skipped": 0,
+    "passed": 50,
+    "unknown": 0,
+    "total": 60
+  },
+  "failedTestCount": 0,
+  "tmsCoverageGaps": [
+    {
+      "[logstrip:group]": {
+        "count": 3,
+        "variants": [
+          "qa.backend.rest.scenarios.b2b.profile.customers.customerId.PatchCustomerTest.errorPatchDocumentNumberMissing",
+          "qa.backend.rest.scenarios.b2b.profile.customers.customerId.PatchCustomerTest.errorPatchDocumentNumberNotUnique",
+          "qa.backend.rest.scenarios.b2b.profile.customers.customerId.PatchCustomerTest.errorPatchInvalidDocument"
+        ]
+      },
+      "status": "failed",
+      "message": "Failed assertions:\n\t1 expectation failed.\nExpected status code <400> but was <500>.\n ==> expected: not <null>",
+      "traceSnippet": "org.opentest4j.AssertionFailedError: [logstrip:= message]\n\tat org.junit.jupiter.api.AssertionUtils.fail(AssertionUtils.java:[NN])",
+      "suite": "B2B /profile/customers/{customerId} (PATCH)",
+      "linkedIssues": [
+        "TICKET-1517"
+      ],
+      "failedStep": "Test",
+      "assertionMessage": "[logstrip:= message]",
+      "sut": "REST API",
+      "flaky": false
+    },
+    {
+      "[logstrip:group]": {
+        "count": 2,
+        "variants": [
+          "qa.backend.rest.scenarios.b2b.profile.enrollment.PostEnrollmentTest.errorEnrollmentDocumentTypeMissing",
+          "qa.backend.rest.scenarios.b2b.profile.enrollment.PostEnrollmentTest.errorEnrollmentConstraintNotBlank"
+        ]
+      },
+      "status": "failed",
+      "message": "Failed assertions:\n\t1 expectation failed.\nExpected status code <400> but was <201>.\n ==> expected: not <null>",
+      "traceSnippet": "org.opentest4j.AssertionFailedError: [logstrip:= message]\n\tat org.junit.jupiter.api.AssertionUtils.fail(AssertionUtils.java:[NN])",
+      "suite": "B2B /profile/enrollment (POST)",
+      "linkedIssues": [
+        "TICKET-1517"
+      ],
+      "failedStep": "Test",
+      "assertionMessage": "[logstrip:= message]",
+      "sut": "REST API",
+      "flaky": false
+    },
+    {
+      "fullName": "qa.backend.rest.scenarios.b2b.profile.customers.customerId.PatchCustomerTest.successPartnerCiUpdateOnPatchAttribute",
+      "status": "failed",
+      "message": "Unable to fetch Partner CI logs by requestId 'PATCH_/b2b/profile/customers/51001_20250101_10h00m05s000123', operation 'EXT_ProfileUpdateRQ'. Last error: No logs found within the specified timeframe containing request token: [REDACTED]",
+      "traceSnippet": "org.opentest4j.AssertionFailedError: [logstrip:= message]\n\tat org.junit.jupiter.api.AssertionUtils.fail(AssertionUtils.java:[NN])\n\tat org.junit.jupiter.api.Assertions.fail(Assertions.java:[NN])\n\tat qa.backend.helpers.PartnerCiHelper.getPartnerCiLogsByRequestId(PartnerCiHelper.java:[NN])\n\tat qa.backend.helpers.PartnerCiHelper.assertPartnerCiComplete(PartnerCiHelper.java:[NN])",
+      "suite": "B2B /profile/customers/{customerId} (PATCH)",
+      "failedStep": "Verify complete Partner CI integration and profile structure for operation: PROFILE_UPDATE (requestId-based)",
+      "assertionMessage": "[logstrip:= message]",
+      "sut": "REST API",
+      "flaky": false
+    },
+    {
+      "fullName": "qa.backend.rest.scenarios.b2b.profile.customers.customerId.PutCustomerTest.successPartnerCiUpdateOnPutCustomerAttribute",
+      "status": "failed",
+      "message": "Unable to fetch Partner CI logs by requestId 'PUT_/b2b/profile/customers/51002_20250101_10h00m44s000456', operation 'EXT_ProfileUpdateRQ'. Last error: No logs found within the specified timeframe containing request token: [REDACTED]",
+      "traceSnippet": "org.opentest4j.AssertionFailedError: [logstrip:= message]\n\tat org.junit.jupiter.api.AssertionUtils.fail(AssertionUtils.java:[NN])\n\tat org.junit.jupiter.api.Assertions.fail(Assertions.java:[NN])\n\tat qa.backend.helpers.PartnerCiHelper.getPartnerCiLogsByRequestId(PartnerCiHelper.java:[NN])\n\tat qa.backend.helpers.PartnerCiHelper.assertPartnerCiComplete(PartnerCiHelper.java:[NN])",
+      "suite": "B2B /profile/customers/{customerId} (PUT)",
+      "failedStep": "Verify complete Partner CI integration and profile structure for operation: PROFILE_UPDATE (requestId-based)",
+      "assertionMessage": "[logstrip:= message]",
+      "sut": "REST API",
+      "flaky": false
+    },
+    {
+      "[logstrip:group]": {
+        "count": 2,
+        "variants": [
+          "qa.backend.rest.scenarios.b2b.profile.search.GetSearchTest.errorSearchDocumentNumberTooShort",
+          "qa.backend.rest.scenarios.b2b.profile.search.GetSearchTest.errorSearchDocumentNumberWithWildcard"
+        ]
+      },
+      "status": "failed",
+      "message": "Failed assertions:\n\tCould not match error response\nExpected: ErrorResponse{error='VALIDATION_ERROR'\n\tmessage='Validation error: Constraint violations'\n\tstatus=[HTTP 4xx]\n\tviolations=[ErrorViolations{path='documentNumber'\n\terror='INVALID_DOC_NUMBER'\n\tmessage='documentNumber has to be at least 5 digits and letters long and should not contain any special characters.'\n}]\n}\nActual: ErrorResponse{error='VALIDATION_ERROR'\n\tmessage='Validation error: Constraint...",
+      "traceSnippet": "org.opentest4j.AssertionFailedError: Failed assertions:\n\tCould not match error response\nExpected: ErrorResponse{error='VALIDATION_ERROR'\n\tmessage='Validation error: Constraint violations'",
+      "suite": "B2B /profile/search (GET)",
+      "linkedIssues": [
+        "TICKET-1515"
+      ],
+      "sut": "REST API",
+      "flaky": false
+    },
+    {
+      "fullName": "qa.backend.rest.scenarios.cc.profile.customers.customerId.PatchCustomerTest.successPartnerCiUpdateOnCcPatchAttribute",
+      "status": "failed",
+      "message": "Failed assertions:\n\t1 expectation failed.\nExpected status code <204> but was <400>.\n ==> expected: not <null>",
+      "traceSnippet": "org.opentest4j.AssertionFailedError: [logstrip:= message]\n\tat org.junit.jupiter.api.AssertionUtils.fail(AssertionUtils.java:[NN])",
+      "suite": "CC /profile/customers/{customerId} (PATCH)",
+      "sut": "REST API",
+      "flaky": false
+    }
+  ],
+  "tmsLinkMapSize": 0,
+  "sourceRoot": "./src"
+}
