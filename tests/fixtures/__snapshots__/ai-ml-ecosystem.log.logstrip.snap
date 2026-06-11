@@ -33,6 +33,5 @@
 [ERROR] stable diffusion Error: RuntimeError: Latent dimension mismatch
     at stablediffusion/pipeline_stable_diffusion_xl.py:42 in __call__
     at stablediffusion/pipelines/utils.py:88 in decode
-[ERROR] [TIME] vllm serve Error: request [ID] CUDA error on GPU 0 [IP]:[PORT]
-[ERROR] [TIME] vllm serve Error: request [ID] CUDA error on GPU 1 [IP]:[PORT]
+[x2] [ERROR] [TIME] vllm serve Error: request [ID] CUDA error on GPU [0 | 1] [IP]:[PORT]
 [FATAL] [TIME] vllm engine NCCL timeout - all GPUs unreachable commit=[HASH]

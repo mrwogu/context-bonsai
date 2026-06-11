@@ -717,6 +717,36 @@ describe('runCli', () => {
     expect(opts2.adaptiveContext).toBe(false);
   });
 
+  it('enables template mining by default and disables it via --no-template-mining', () => {
+    const opts = parseCliOptions(['raw.log']);
+    expect(opts.templateMining).toBe(true);
+
+    const opts2 = parseCliOptions(['raw.log', '--no-template-mining']);
+    expect(opts2.templateMining).toBe(false);
+  });
+
+  it('parses --max-stack-frames including the 0 = unlimited sentinel', () => {
+    const opts = parseCliOptions(['raw.log', '--max-stack-frames', '5']);
+    expect(opts.maxStackFrames).toBe(5);
+
+    const unlimited = parseCliOptions(['raw.log', '--max-stack-frames', '0']);
+    expect(unlimited.maxStackFrames).toBe(0);
+
+    const unset = parseCliOptions(['raw.log']);
+    expect(unset.maxStackFrames).toBeUndefined();
+  });
+
+  it('rejects a non-numeric --max-stack-frames with exit code 2', () => {
+    let caught: unknown;
+    try {
+      parseCliOptions(['raw.log', '--max-stack-frames', 'many']);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(CliError);
+    expect((caught as CliError).exitCode).toBe(2);
+  });
+
   it('parses --collapse-blocks flag', () => {
     const opts = parseCliOptions(['raw.log', '--collapse-blocks', '10']);
     expect(opts.collapseBlocks).toBe(10);

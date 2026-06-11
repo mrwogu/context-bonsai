@@ -37,9 +37,12 @@ import {
   detectLogSources,
   estimateTokens,
   explainLogLine,
+  RARITY_BOOST,
+  RARITY_MIN_INPUT_LINES,
   isCiNoiseLine,
   isInternalStackTraceLine,
   isProgressBarLine,
+  isStackFrameLine,
   looksLikeDiagnosticLine,
   parseAggressiveness,
   pathsReferToSameFile,
@@ -1503,7 +1506,9 @@ describe('logstrip parser', () => {
     ].join('\n');
 
     const output = new MemoryWritable();
-    await processLogStream(Readable.from([logs]), output);
+    // templateMining off: the test asserts context-window mechanics, and
+    // "stack frame 1"/"stack frame 2" would otherwise fold into one [x2].
+    await processLogStream(Readable.from([logs]), output, { templateMining: false });
     const content = output.content();
 
     expect(content).toContain('stack frame 1');
@@ -1524,11 +1529,14 @@ describe('logstrip parser', () => {
     ].join('\n');
 
     const adaptive = new MemoryWritable();
-    await processLogStream(Readable.from([logs]), adaptive);
+    await processLogStream(Readable.from([logs]), adaptive, { templateMining: false });
     const adaptiveContent = adaptive.content();
 
     const fixed = new MemoryWritable();
-    await processLogStream(Readable.from([logs]), fixed, { adaptiveContext: false });
+    await processLogStream(Readable.from([logs]), fixed, {
+      adaptiveContext: false,
+      templateMining: false,
+    });
     const fixedContent = fixed.content();
 
     // Widened window keeps two extra after-context lines around the isolated error.
@@ -1541,11 +1549,14 @@ describe('logstrip parser', () => {
     const logs = ['[ERROR] alpha', '[ERROR] beta', 'soft 0', 'soft 1'].join('\n');
 
     const adaptive = new MemoryWritable();
-    await processLogStream(Readable.from([logs]), adaptive);
+    await processLogStream(Readable.from([logs]), adaptive, { templateMining: false });
     const adaptiveContent = adaptive.content();
 
     const fixed = new MemoryWritable();
-    await processLogStream(Readable.from([logs]), fixed, { adaptiveContext: false });
+    await processLogStream(Readable.from([logs]), fixed, {
+      adaptiveContext: false,
+      templateMining: false,
+    });
     const fixedContent = fixed.content();
 
     // Clustered errors are self-contextualizing, so the after-window shrinks.
@@ -2684,5 +2695,145 @@ internalStackPatterns:
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
+  });
+});
+
+describe('compound exception and polyglot stack-frame detection', () => {
+  it('recognizes compound exception class names', () => {
+    expect(looksLikeDiagnosticLine('PaymentGatewayException: card declined')).toBe(true);
+    expect(looksLikeDiagnosticLine('caught RefundLedgerFault in worker')).toBe(true);
+    expect(scoreLineRelevance('OrderSyncError: upstream rejected', 'medium')).toBeGreaterThanOrEqual(
+      SCORE_KEEP_THRESHOLD,
+    );
+  });
+
+  it('recognizes Ruby stack frames', () => {
+    expect(isStackFrameLine("\tfrom /srv/app/lib/orders/finalizer.rb:22:in 'finalize'")).toBe(true);
+    expect(isStackFrameLine("\tfrom /usr/local/bundle/gems/rspec-core-3.13.0/lib/rspec/core/example.rb:263:in `instance_exec'")).toBe(true);
+  });
+
+  it('recognizes Rust panics and backtrace frames', () => {
+    expect(looksLikeDiagnosticLine("thread 'main' panicked at src/main.rs:4:5:")).toBe(true);
+    expect(isStackFrameLine('   1: core::panicking::panic_fmt')).toBe(true);
+    expect(isStackFrameLine('             at /rustc/9b00956e/library/std/src/panicking.rs:645:5')).toBe(true);
+  });
+
+  it('recognizes C# stack frames', () => {
+    expect(isStackFrameLine('   at Acme.Checkout.CheckoutService.Submit(Order order) in /src/Checkout/CheckoutService.cs:line 132')).toBe(true);
+    expect(isStackFrameLine('   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)')).toBe(true);
+  });
+
+  it('recognizes PHP stack frames', () => {
+    expect(isStackFrameLine('#0 /srv/app/src/Refunds/RefundService.php(39): Acme\\Refunds\\Ledger->append()')).toBe(true);
+    expect(isStackFrameLine('#3 {main}')).toBe(true);
+  });
+
+  it('still recognizes frames after line:col normalization to [NN]', () => {
+    expect(isStackFrameLine('    at resolveLedger (/srv/app/src/refunds/resolve-ledger.ts:[NN]:[NN])')).toBe(true);
+    expect(isStackFrameLine('    at com.example.Foo.bar(Foo.java:[NN])')).toBe(true);
+    expect(isStackFrameLine('  File "/repo/tests/test.py", line [NN], in test')).toBe(true);
+    expect(isStackFrameLine('        /repo/orders/process_test.go:[NN] +0x85')).toBe(true);
+  });
+
+  it('treats gem, rustc and System frames as internal', () => {
+    expect(isInternalStackTraceLine("\tfrom /usr/local/bundle/gems/rspec-core-3.13.0/lib/rspec/core/hooks.rb:486:in 'run'")).toBe(true);
+    expect(isInternalStackTraceLine('             at /rustc/9b00956e/library/core/src/panicking.rs:72:14')).toBe(true);
+    expect(isInternalStackTraceLine('   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)')).toBe(true);
+    expect(isInternalStackTraceLine("\tfrom /srv/app/lib/orders/finalizer.rb:22:in 'finalize'")).toBe(false);
+  });
+
+  it('non-frame text is not a stack frame', () => {
+    expect(isStackFrameLine('plain text line')).toBe(false);
+    expect(isStackFrameLine('[ERROR] something failed')).toBe(false);
+  });
+});
+
+describe('rarity boost (IDF side)', () => {
+  it('boosts a unique positively-scored line in a large stream', () => {
+    const base = scoreLineRelevance('[Pipeline] deploy step', 'medium', 1, 10);
+    const boosted = scoreLineRelevance(
+      '[Pipeline] deploy step',
+      'medium',
+      1,
+      RARITY_MIN_INPUT_LINES,
+    );
+    expect(boosted).toBe(base + RARITY_BOOST);
+  });
+
+  it('does not boost repeated lines or zero-scored lines', () => {
+    expect(
+      scoreLineRelevance('[Pipeline] deploy step', 'medium', 2, RARITY_MIN_INPUT_LINES),
+    ).toBe(scoreLineRelevance('[Pipeline] deploy step', 'medium', 2, 10));
+    expect(
+      scoreLineRelevance('plain narrative line', 'medium', 1, RARITY_MIN_INPUT_LINES),
+    ).toBe(0);
+  });
+});
+
+describe('app-stack truncation', () => {
+  const frames = Array.from(
+    { length: 8 },
+    (_, i) => `    at fn${i} (/srv/app/src/file${i}.ts:${i + 1}0:5)`,
+  );
+
+  it('caps consecutive app frames and emits a count marker', async () => {
+    const logs = ['[ERROR] boom happened', ...frames].join('\n');
+    const decisions: string[] = [];
+
+    const output = new MemoryWritable();
+    await processLogStream(Readable.from([logs]), output, {
+      maxStackFrames: 3,
+      onDecision: (d) => decisions.push(d.reason),
+    });
+    const content = output.content();
+
+    expect(content).toContain('at fn0');
+    expect(content).toContain('at fn2');
+    expect(content).not.toContain('at fn3');
+    expect(content).not.toContain('at fn7');
+    expect(content).toContain('[... 5 more application stack frames ...]');
+    expect(decisions.filter((r) => r === 'stack-truncated')).toHaveLength(5);
+  });
+
+  it('flushes the marker before the next kept non-frame line', async () => {
+    const logs = ['[ERROR] boom happened', ...frames, '[FATAL] giving up'].join('\n');
+
+    const output = new MemoryWritable();
+    await processLogStream(Readable.from([logs]), output, { maxStackFrames: 2 });
+    const lines = output.content().trimEnd().split('\n');
+
+    const markerIndex = lines.findIndex((l) => l.includes('more application stack frames'));
+    const fatalIndex = lines.findIndex((l) => l.includes('[FATAL]'));
+    expect(markerIndex).toBeGreaterThan(-1);
+    expect(fatalIndex).toBe(markerIndex + 1);
+  });
+
+  it('maxStackFrames: 0 keeps every frame', async () => {
+    const logs = ['[ERROR] boom happened', ...frames].join('\n');
+
+    const output = new MemoryWritable();
+    await processLogStream(Readable.from([logs]), output, { maxStackFrames: 0 });
+    const content = output.content();
+
+    expect(content).toContain('at fn7');
+    expect(content).not.toContain('more application stack frames');
+  });
+});
+
+describe('format drift re-election', () => {
+  it('switches the detected format after a sustained mid-stream drift', async () => {
+    const head = ['level=info msg=boot service=api', 'level=info msg=ready service=api'];
+    const tail = Array.from(
+      { length: 25 },
+      (_, i) => `{"level":"error","msg":"db timeout ${i}"}`,
+    );
+    const logs = [...head, ...tail].join('\n');
+
+    const output = new MemoryWritable();
+    const result = await processLogStream(Readable.from([logs]), output, {
+      formatDetectionSampleSize: 2,
+    });
+
+    expect(result.detectedFormat).toBe('json');
   });
 });
