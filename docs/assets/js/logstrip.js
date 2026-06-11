@@ -455,14 +455,54 @@
 
   // Hero demo scenarios. Every clean output and every metric below was
   // produced by running the real CLI (node dist/cli/index.js) against the
-  // raw log shown - nothing is hand-written. Regenerate with the commands
-  // recorded in each scenario's `cmd` field if the parser output changes.
+  // raw log shown - nothing is hand-written. `fates` maps each raw line to
+  // its destiny during the morph animation: ['k', cleanIdx] survives as
+  // clean[cleanIdx], ['g', leaderIdx] collapses into the raw leader line,
+  // ['d'] is dropped. The final state is always the exact CLI output
+  // (cleanPre), so the morph is presentation only. Regenerate with the
+  // commands recorded in each scenario's `cmd` field if parser output changes.
   const HERO_SCENARIOS = [
     {
       "id": "incident",
       "label": "incident",
       "title": "raw.log → logstrip.log",
       "cmd": "logstrip raw.log --stats",
+      "agent": [
+        [
+          "likely root cause",
+          "payments charge failed across 3 requests"
+        ],
+        [
+          "leaked credential",
+          "api_key masked to [REDACTED]"
+        ],
+        [
+          "app frame",
+          "ChargeService.process:42"
+        ],
+        [
+          "noise removed",
+          "36 low-value lines · internal frames collapsed"
+        ]
+      ],
+      "metrics": [
+        [
+          "80.48%",
+          "token savings"
+        ],
+        [
+          "36",
+          "lines dropped"
+        ],
+        [
+          "2",
+          "duplicates folded"
+        ],
+        [
+          "1",
+          "internal frames hidden"
+        ]
+      ],
       "raw": [
         "[INFO] 2026-05-15T08:01:12.001Z i-0a1b2c3d4e5f6g7h8 [nginx] GET /api/v1/users 200 10.0.1.15:443 → 10.42.7.18:8080 12ms",
         "[INFO] 2026-05-15T08:01:12.018Z i-0a1b2c3d4e5f6g7h8 [nginx] GET /api/v1/products 200 10.0.1.15:443 → 10.42.7.18:8080 8ms",
@@ -520,6 +560,7 @@
         "[INFO] 2026-05-15T08:01:12.770Z i-0a1b2c3d4e5f6g7h8 [nginx] GET /api/v1/users 200 10.0.1.15:443 → 10.42.7.18:8080 7ms"
       ],
       "clean": [
+        "❯ logstrip raw.log --stats",
         "✓ detected: nginx · spring-boot · kafka · tomcat · trivy",
         "[ERROR] [TIME] spring-boot [payments] gateway auth rejected api_key=[REDACTED]",
         "[x3] [ERROR] [TIME] spring-boot [payments] charge failed requestId=[ID] amount=[99.99 | 49.50 | 12.00]",
@@ -538,40 +579,185 @@
         "panic: runtime error: invalid memory address or nil pointer dereference",
         "    at main (main.go:[NN]:[NN])"
       ],
-      "agent": [
+      "fates": [
         [
-          "likely root cause",
-          "payments charge failed across 3 requests"
+          "d"
         ],
         [
-          "leaked credential",
-          "api_key masked to [REDACTED]"
+          "d"
         ],
         [
-          "app frame",
-          "ChargeService.process:42"
+          "d"
         ],
         [
-          "noise removed",
-          "36 low-value lines · internal frames collapsed"
-        ]
-      ],
-      "metrics": [
-        [
-          "80.48%",
-          "token savings"
+          "d"
         ],
         [
-          "36",
-          "lines dropped"
+          "d"
         ],
         [
-          "2",
-          "duplicates folded"
+          "d"
         ],
         [
-          "1",
-          "internal frames hidden"
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          2
+        ],
+        [
+          "k",
+          3
+        ],
+        [
+          "g",
+          27
+        ],
+        [
+          "g",
+          27
+        ],
+        [
+          "k",
+          4
+        ],
+        [
+          "k",
+          5
+        ],
+        [
+          "k",
+          6
+        ],
+        [
+          "k",
+          7
+        ],
+        [
+          "k",
+          8
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          10
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          11
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          12
+        ],
+        [
+          "k",
+          13
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          14
+        ],
+        [
+          "k",
+          15
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          16
+        ],
+        [
+          "k",
+          17
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
         ]
       ]
     },
@@ -580,6 +766,42 @@
       "label": "ci build",
       "title": "build.log → logstrip.log",
       "cmd": "logstrip build.log --stats",
+      "agent": [
+        [
+          "failing test",
+          "ChargeService > retries declined cards once"
+        ],
+        [
+          "assertion",
+          "expected 2 to be 1 (charge.test.ts:88)"
+        ],
+        [
+          "flaky retries",
+          "folded into [x3] attempt [1 | 2 | 3]"
+        ],
+        [
+          "noise removed",
+          "25 low-value lines (npm warns, compile chunks)"
+        ]
+      ],
+      "metrics": [
+        [
+          "56.29%",
+          "token savings"
+        ],
+        [
+          "25",
+          "lines dropped"
+        ],
+        [
+          "x3",
+          "flaky retries folded"
+        ],
+        [
+          "51",
+          "tests summarized"
+        ]
+      ],
       "raw": [
         "[command]/usr/bin/git checkout --progress --force refs/remotes/origin/main",
         "2026-06-09T14:21:02.114Z ##[group]Run npm ci",
@@ -626,6 +848,7 @@
         "Artifact upload finished"
       ],
       "clean": [
+        "❯ logstrip build.log --stats",
         "✓ detected: github-actions · npm · vitest · typescript",
         " ✓ tests/cart.test.ts (14 tests) 213ms",
         " ✓ tests/inventory.test.ts (9 tests) 102ms",
@@ -644,40 +867,153 @@
         "[TIME] ##[error]Process completed with exit code 1.",
         "Uploading artifact coverage-report (size: 1.2 MB)"
       ],
-      "agent": [
+      "fates": [
         [
-          "failing test",
-          "ChargeService > retries declined cards once"
+          "d"
         ],
         [
-          "assertion",
-          "expected 2 to be 1 (charge.test.ts:88)"
+          "d"
         ],
         [
-          "flaky retries",
-          "folded into [x3] attempt [1 | 2 | 3]"
+          "d"
         ],
         [
-          "noise removed",
-          "25 low-value lines (npm warns, compile chunks)"
-        ]
-      ],
-      "metrics": [
-        [
-          "56.29%",
-          "token savings"
+          "d"
         ],
         [
-          "25",
-          "lines dropped"
+          "d"
         ],
         [
-          "x3",
-          "flaky retries folded"
+          "d"
         ],
         [
-          "51",
-          "tests summarized"
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          2
+        ],
+        [
+          "k",
+          3
+        ],
+        [
+          "k",
+          4
+        ],
+        [
+          "k",
+          5
+        ],
+        [
+          "k",
+          6
+        ],
+        [
+          "k",
+          7
+        ],
+        [
+          "k",
+          8
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          9
+        ],
+        [
+          "g",
+          31
+        ],
+        [
+          "g",
+          31
+        ],
+        [
+          "k",
+          10
+        ],
+        [
+          "k",
+          11
+        ],
+        [
+          "k",
+          12
+        ],
+        [
+          "k",
+          13
+        ],
+        [
+          "k",
+          14
+        ],
+        [
+          "k",
+          15
+        ],
+        [
+          "k",
+          16
+        ],
+        [
+          "k",
+          17
+        ],
+        [
+          "d"
         ]
       ]
     },
@@ -686,6 +1022,42 @@
       "label": "security scan",
       "title": "trivy.json → logstrip.json",
       "cmd": "logstrip trivy.json --stats",
+      "agent": [
+        [
+          "ship blocker",
+          "CVE-2026-12345 openssl CRITICAL 9.8 → fix 3.0.15-r2"
+        ],
+        [
+          "grouped",
+          "5 LOW busybox CVEs → one [logstrip:group] entry"
+        ],
+        [
+          "pruned",
+          "empty fields and 68 boilerplate lines"
+        ],
+        [
+          "still valid JSON",
+          "downstream tools can keep parsing it"
+        ]
+      ],
+      "metrics": [
+        [
+          "38.22%",
+          "token savings"
+        ],
+        [
+          "68",
+          "lines pruned"
+        ],
+        [
+          "x5",
+          "CVEs grouped"
+        ],
+        [
+          "valid",
+          "JSON preserved"
+        ]
+      ],
       "raw": [
         "{",
         "  \"SchemaVersion\": 2,",
@@ -910,6 +1282,7 @@
         "}"
       ],
       "clean": [
+        "❯ logstrip trivy.json --stats",
         "✓ detected: trivy · docker · format: json report",
         "{",
         "  \"[logstrip:meta]\": \"\\\"[logstrip:= f]\\\" repeats the text of sibling field f; empty fields pruned; \\\"[logstrip:group]\\\" collapses entries identical except for the listed variant fields\",",
@@ -1065,40 +1438,772 @@
         "  ]",
         "}"
       ],
-      "agent": [
+      "fates": [
         [
-          "ship blocker",
-          "CVE-2026-12345 openssl CRITICAL 9.8 → fix 3.0.15-r2"
+          "k",
+          2
         ],
         [
-          "grouped",
-          "5 LOW busybox CVEs → one [logstrip:group] entry"
+          "k",
+          4
         ],
         [
-          "pruned",
-          "empty fields and 68 boilerplate lines"
+          "k",
+          5
         ],
         [
-          "still valid JSON",
-          "downstream tools can keep parsing it"
-        ]
-      ],
-      "metrics": [
-        [
-          "38.22%",
-          "token savings"
+          "k",
+          6
         ],
         [
-          "68",
-          "lines pruned"
+          "k",
+          7
         ],
         [
-          "x5",
-          "CVEs grouped"
+          "k",
+          8
         ],
         [
-          "valid",
-          "JSON preserved"
+          "k",
+          9
+        ],
+        [
+          "k",
+          10
+        ],
+        [
+          "k",
+          11
+        ],
+        [
+          "k",
+          12
+        ],
+        [
+          "k",
+          13
+        ],
+        [
+          "k",
+          14
+        ],
+        [
+          "k",
+          15
+        ],
+        [
+          "k",
+          16
+        ],
+        [
+          "k",
+          17
+        ],
+        [
+          "k",
+          18
+        ],
+        [
+          "k",
+          19
+        ],
+        [
+          "k",
+          20
+        ],
+        [
+          "k",
+          21
+        ],
+        [
+          "k",
+          22
+        ],
+        [
+          "k",
+          23
+        ],
+        [
+          "k",
+          24
+        ],
+        [
+          "k",
+          25
+        ],
+        [
+          "k",
+          26
+        ],
+        [
+          "k",
+          27
+        ],
+        [
+          "k",
+          28
+        ],
+        [
+          "k",
+          29
+        ],
+        [
+          "k",
+          30
+        ],
+        [
+          "k",
+          31
+        ],
+        [
+          "k",
+          32
+        ],
+        [
+          "k",
+          33
+        ],
+        [
+          "k",
+          34
+        ],
+        [
+          "k",
+          35
+        ],
+        [
+          "k",
+          36
+        ],
+        [
+          "k",
+          37
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          38
+        ],
+        [
+          "k",
+          39
+        ],
+        [
+          "k",
+          40
+        ],
+        [
+          "k",
+          41
+        ],
+        [
+          "k",
+          42
+        ],
+        [
+          "k",
+          43
+        ],
+        [
+          "k",
+          44
+        ],
+        [
+          "k",
+          45
+        ],
+        [
+          "k",
+          46
+        ],
+        [
+          "k",
+          47
+        ],
+        [
+          "k",
+          48
+        ],
+        [
+          "k",
+          49
+        ],
+        [
+          "k",
+          50
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          100
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          101
+        ],
+        [
+          "k",
+          102
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          103
+        ],
+        [
+          "k",
+          104
+        ],
+        [
+          "k",
+          105
+        ],
+        [
+          "k",
+          106
+        ],
+        [
+          "k",
+          107
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          108
+        ],
+        [
+          "k",
+          109
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          110
+        ],
+        [
+          "k",
+          111
+        ],
+        [
+          "k",
+          112
+        ],
+        [
+          "k",
+          113
+        ],
+        [
+          "k",
+          114
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          115
+        ],
+        [
+          "k",
+          116
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          117
+        ],
+        [
+          "k",
+          118
+        ],
+        [
+          "k",
+          119
+        ],
+        [
+          "k",
+          120
+        ],
+        [
+          "k",
+          121
+        ],
+        [
+          "k",
+          122
+        ],
+        [
+          "k",
+          123
+        ],
+        [
+          "k",
+          124
+        ],
+        [
+          "k",
+          125
+        ],
+        [
+          "k",
+          126
+        ],
+        [
+          "k",
+          127
+        ],
+        [
+          "k",
+          128
+        ],
+        [
+          "k",
+          129
+        ],
+        [
+          "k",
+          130
+        ],
+        [
+          "k",
+          131
+        ],
+        [
+          "k",
+          132
+        ],
+        [
+          "k",
+          133
+        ],
+        [
+          "k",
+          134
+        ],
+        [
+          "k",
+          135
+        ],
+        [
+          "k",
+          136
+        ],
+        [
+          "k",
+          137
+        ],
+        [
+          "k",
+          138
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          139
+        ],
+        [
+          "k",
+          140
+        ],
+        [
+          "k",
+          141
+        ],
+        [
+          "k",
+          142
+        ],
+        [
+          "k",
+          143
+        ],
+        [
+          "k",
+          144
+        ],
+        [
+          "k",
+          145
+        ],
+        [
+          "k",
+          146
+        ],
+        [
+          "k",
+          147
+        ],
+        [
+          "k",
+          148
+        ],
+        [
+          "k",
+          149
+        ],
+        [
+          "k",
+          150
+        ],
+        [
+          "k",
+          151
+        ],
+        [
+          "k",
+          152
+        ],
+        [
+          "k",
+          153
+        ],
+        [
+          "k",
+          154
         ]
       ]
     },
@@ -1107,6 +2212,42 @@
       "label": "token budget",
       "title": "raw.log → 60-token budget",
       "cmd": "logstrip raw.log --max-tokens 60 --stats",
+      "agent": [
+        [
+          "token budget",
+          "--max-tokens 60 → output is 58 tokens"
+        ],
+        [
+          "kept",
+          "only the highest-scoring diagnostic lines"
+        ],
+        [
+          "root cause survives",
+          "charge failures + NullPointerException intact"
+        ],
+        [
+          "fits",
+          "any model context window, however small"
+        ]
+      ],
+      "metrics": [
+        [
+          "58 / 60",
+          "tokens used"
+        ],
+        [
+          "90.15%",
+          "token savings"
+        ],
+        [
+          "46",
+          "lines dropped"
+        ],
+        [
+          "6",
+          "lines kept"
+        ]
+      ],
       "raw": [
         "[INFO] 2026-05-15T08:01:12.001Z i-0a1b2c3d4e5f6g7h8 [nginx] GET /api/v1/users 200 10.0.1.15:443 → 10.42.7.18:8080 12ms",
         "[INFO] 2026-05-15T08:01:12.018Z i-0a1b2c3d4e5f6g7h8 [nginx] GET /api/v1/products 200 10.0.1.15:443 → 10.42.7.18:8080 8ms",
@@ -1164,6 +2305,7 @@
         "[INFO] 2026-05-15T08:01:12.770Z i-0a1b2c3d4e5f6g7h8 [nginx] GET /api/v1/users 200 10.0.1.15:443 → 10.42.7.18:8080 7ms"
       ],
       "clean": [
+        "❯ logstrip raw.log --max-tokens 60 --stats",
         "✓ detected: nginx · spring-boot · kafka · tomcat · trivy",
         "[ERROR] [TIME] spring-boot [payments] gateway auth rejected api_key=[REDACTED]",
         "[x3] [ERROR] [TIME] spring-boot [payments] charge failed requestId=[ID] amount=[99.99 | 49.50 | 12.00]",
@@ -1172,40 +2314,176 @@
         "CRITICAL CVE-2026-12345 openssl 3.0.13-r0 fixed=3.0.15-r2",
         "Warning Failed Error: ErrImagePull image=registry.example.com/checkout@sha256:[HASH]"
       ],
-      "agent": [
+      "fates": [
         [
-          "token budget",
-          "--max-tokens 60 → output is 58 tokens"
+          "d"
         ],
         [
-          "kept",
-          "only the highest-scoring diagnostic lines"
+          "d"
         ],
         [
-          "root cause survives",
-          "charge failures + NullPointerException intact"
+          "d"
         ],
         [
-          "fits",
-          "any model context window, however small"
-        ]
-      ],
-      "metrics": [
-        [
-          "58 / 60",
-          "tokens used"
+          "d"
         ],
         [
-          "90.15%",
-          "token savings"
+          "d"
         ],
         [
-          "46",
-          "lines dropped"
+          "d"
         ],
         [
-          "6",
-          "lines kept"
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          2
+        ],
+        [
+          "k",
+          3
+        ],
+        [
+          "g",
+          27
+        ],
+        [
+          "g",
+          27
+        ],
+        [
+          "k",
+          4
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          5
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          6
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "k",
+          7
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
+        ],
+        [
+          "d"
         ]
       ]
     }
@@ -1216,11 +2494,15 @@
       if (root.dataset.logstripCompareReady === 'true') return;
       root.dataset.logstripCompareReady = 'true';
 
+      const prefersReduced =
+        window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
       function esc(s) {
         return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       }
 
       function highlightLine(l) {
+        if (/^❯ /.test(l)) return `<span class="det">${esc(l)}</span>`;
         if (/^✓ detected:/i.test(l)) return `<span class="det">${esc(l)}</span>`;
         if (/^\[x\d+\]/.test(l)) return `<span class="x">${esc(l).replace(/^(\[x\d+\])/, '<span class="dup">$1</span>')}</span>`;
         if (/\[logstrip:(?:meta|group|=)/.test(l)) return `<span class="dup">${esc(l)}</span>`;
@@ -1255,8 +2537,6 @@
         </div>
         <div class="logstrip-demo__screen" data-logstrip-screen>
           <pre class="logstrip-demo__pre logstrip-demo__pre--raw" data-logstrip-raw-pre></pre>
-          <pre class="logstrip-demo__pre logstrip-demo__pre--loading" data-logstrip-loading-pre><span style="color: rgba(164, 255, 175, 0.8);" data-logstrip-cmd></span>
-<span style="color: rgba(247, 244, 234, 0.5); display: inline-block; margin-top: 0.5rem; animation: logstrip-loading-pulse 1.2s infinite ease-in-out;">analyzing noise patterns and compressing context...</span></pre>
           <pre class="logstrip-demo__pre logstrip-demo__pre--clean" data-logstrip-clean-pre></pre>
           <div class="logstrip-demo__agent-card" data-logstrip-agent aria-label="Agent-ready summary"></div>
         </div>
@@ -1272,45 +2552,115 @@
       const metrics = root.querySelector('[data-logstrip-metrics]');
       const rawPre = root.querySelector('[data-logstrip-raw-pre]');
       const cleanPre = root.querySelector('[data-logstrip-clean-pre]');
-      const cmdSpan = root.querySelector('[data-logstrip-cmd]');
       const agentCard = root.querySelector('[data-logstrip-agent]');
 
       if (!rawBtn || !cleanBtn || !pill || !screen || !rawPre || !cleanPre) return;
 
       let mode = 'raw';
-      let transitionTimeout = null;
+      let current = HERO_SCENARIOS[0];
+      let morphTimers = [];
+
+      function clearMorph() {
+        morphTimers.forEach(clearTimeout);
+        morphTimers = [];
+      }
+
+      function schedule(fn, t) {
+        morphTimers.push(setTimeout(fn, t));
+      }
+
+      function renderRaw(scenario) {
+        rawPre.innerHTML = scenario.raw
+          .map((l) => `<span class="logstrip-demo__ln">${esc(l) || ' '}</span>`)
+          .join('');
+      }
+
+      function setControls(clean) {
+        rawBtn.classList.toggle('is-active', !clean);
+        cleanBtn.classList.toggle('is-active', clean);
+        pill.classList.toggle('is-clean', clean);
+        if (hint) hint.classList.toggle('is-hidden', clean);
+      }
+
+      function animateMetric(el) {
+        const finalText = el.dataset.logstripFinal || '';
+        const m = finalText.match(/-?\d+(?:\.\d+)?/);
+        if (!m || prefersReduced) {
+          el.textContent = finalText;
+          return;
+        }
+        const target = parseFloat(m[0]);
+        const decimals = (m[0].split('.')[1] || '').length;
+        const prefix = finalText.slice(0, m.index);
+        const suffix = finalText.slice(m.index + m[0].length);
+        const startTime = performance.now();
+        const duration = 900;
+        function frame(now) {
+          const p = Math.min(1, (now - startTime) / duration);
+          const eased = 1 - Math.pow(1 - p, 3);
+          el.textContent = prefix + (target * eased).toFixed(decimals) + suffix;
+          if (p < 1) requestAnimationFrame(frame);
+          else el.textContent = finalText;
+        }
+        requestAnimationFrame(frame);
+      }
+
+      function finishClean() {
+        mode = 'clean';
+        screen.dataset.logstripMode = 'clean';
+        if (metrics) {
+          metrics.classList.add('is-visible');
+          metrics.querySelectorAll('strong').forEach(animateMetric);
+        }
+      }
+
+      function startMorph() {
+        mode = 'morphing';
+        setControls(true);
+        if (metrics) metrics.classList.remove('is-visible');
+        const fates = current.fates || [];
+        const clean = current.clean;
+        const spans = rawPre.children;
+        for (let i = 0; i < spans.length; i++) {
+          const span = spans[i];
+          const fate = fates[i] || ['d'];
+          if (fate[0] === 'd') {
+            schedule(() => span.classList.add('is-dropping'), 120 + (i % 40) * 16);
+          } else if (fate[0] === 'g') {
+            schedule(() => span.classList.add('is-merging'), 360 + (i % 40) * 16);
+          } else {
+            schedule(() => {
+              span.innerHTML = highlightLine(clean[fate[1]]);
+              span.classList.add('is-swapped');
+            }, 650 + (i % 40) * 22);
+          }
+        }
+        schedule(finishClean, 1800);
+      }
 
       function setMode(m) {
-        clearTimeout(transitionTimeout);
-        if (m === 'clean' && mode === 'raw') {
-          mode = 'loading';
-          screen.dataset.logstripMode = 'loading';
-          rawBtn.classList.remove('is-active');
-          cleanBtn.classList.add('is-active');
-          pill.classList.add('is-clean');
-          if (hint) hint.classList.add('is-hidden');
-          if (metrics) metrics.classList.remove('is-visible');
-
-          transitionTimeout = setTimeout(() => {
-            mode = 'clean';
-            screen.dataset.logstripMode = 'clean';
-            if (metrics) metrics.classList.add('is-visible');
-          }, 2200);
+        if (m === 'clean') {
+          if (mode !== 'raw') return;
+          if (prefersReduced) {
+            setControls(true);
+            finishClean();
+          } else {
+            startMorph();
+          }
         } else {
-          mode = m;
-          screen.dataset.logstripMode = m;
-          rawBtn.classList.toggle('is-active', m === 'raw');
-          cleanBtn.classList.toggle('is-active', m === 'clean');
-          pill.classList.toggle('is-clean', m === 'clean');
-          if (hint) hint.classList.toggle('is-hidden', m === 'clean');
-          if (metrics) metrics.classList.toggle('is-visible', m === 'clean');
+          clearMorph();
+          mode = 'raw';
+          renderRaw(current);
+          screen.dataset.logstripMode = 'raw';
+          setControls(false);
+          if (metrics) metrics.classList.remove('is-visible');
         }
       }
 
       function setScenario(scenario) {
+        clearMorph();
+        current = scenario;
         if (title) title.textContent = scenario.title;
-        rawPre.textContent = scenario.raw.join('\n');
-        if (cmdSpan) cmdSpan.textContent = `❯ ${scenario.cmd}`;
         cleanPre.innerHTML = scenario.clean.map(highlightLine).join('\n');
         if (agentCard) {
           agentCard.innerHTML =
@@ -1318,13 +2668,16 @@
             scenario.agent.map(([label, value]) => `<div class="logstrip-demo__agent-row"><b>${esc(label)}</b><span>${esc(value)}</span></div>`).join('');
         }
         if (metrics) {
-          metrics.innerHTML = scenario.metrics.map(([value, label]) => `<span><strong>${esc(value)}</strong> ${esc(label)}</span>`).join('');
+          metrics.innerHTML = scenario.metrics
+            .map(([value, label]) => `<span><strong data-logstrip-final="${esc(value)}">${esc(value)}</strong> ${esc(label)}</span>`)
+            .join('');
         }
         tabs.forEach((tab) => {
           const active = tab.dataset.logstripTab === scenario.id;
           tab.classList.toggle('is-active', active);
           tab.setAttribute('aria-selected', String(active));
         });
+        mode = 'morphing'; // force setMode('raw') to do a full reset
         setMode('raw');
       }
 
