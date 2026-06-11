@@ -8,8 +8,6 @@ description: Free, zero-dependency CLI that compresses noisy logs into high-sign
 <div class="logstrip-hero__copy" markdown="1">
 <p class="logstrip-kicker">cli compression for agentic pipelines</p>
 
-<a class="logstrip-hero__badge" href="https://github.com/mrwogu/logstrip/blob/main/CHANGELOG.md">new in v1.12 · semantic json report compression →</a>
-
 # smaller logs. cleaner agents.
 <span class="logstrip-sr-only">LogStrip - log compression CLI for AI agents.</span>
 
