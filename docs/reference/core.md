@@ -284,6 +284,8 @@ const result = await processLogStream(input, output, {
   rootCause: true,              // prune downstream cascade restatements
   multilingual: true,           // detect non-English / CJK error keywords
   adaptiveContext: true,        // size the after-error context by error density
+  templateMining: true,         // fold near-identical lines differing only in a
+                                //   number after a generic word label
 
   // Numeric tuning / budget options:
   maxTokens: 8_000,             // trim to the highest-scoring lines within a
@@ -293,6 +295,8 @@ const result = await processLogStream(input, output, {
   collapseBlocks: 20,           // collapse consecutive repeats of a multi-line
                                 //   block (up to N lines) into one + [block xM]
   formatDetectionSampleSize: 50,// majority-vote window for format detection
+  maxStackFrames: 10,           // cap consecutive app stack frames per trace
+                                //   (0 keeps every frame)
 });
 ```
 
@@ -305,7 +309,9 @@ const result = await processLogStream(input, output, {
 | `maxTokens` | `number` | _(off)_ | LLM context-budget mode: keeps the highest-scoring lines until the token budget is reached, preserving original order. |
 | `dedupeWindow` | `number` | `1` | Collapses non-adjacent duplicate lines seen within the last _N_ distinct lines. `1` keeps adjacent-only deduplication. |
 | `collapseBlocks` | `number` | _(off)_ | Collapses consecutive repeats of a multi-line block (up to _N_ lines) into one copy plus a `[block xM]` marker. |
-| `formatDetectionSampleSize` | `number` | `50` | Number of leading non-blank lines sampled before the first-line format guess may be corrected by majority vote. |
+| `formatDetectionSampleSize` | `number` | `50` | Number of leading non-blank lines sampled before the first-line format guess may be corrected by majority vote. After the vote locks, a sustained run of differently-formatted lines (20 consecutive) re-elects the format, so mixed streams that switch format mid-file stay correctly classified. |
+| `templateMining` | `boolean` | auto-on | Folds near-identical lines whose only difference is a number after a generic word label (`Retrying upload 17` / `… 18` → `[x2] Retrying upload [17 \| 18] …`). Numbers after diagnostic labels (`code`, `status`, `exit`, `signal`, `line`, `version`, `errno`, `error`) never merge. |
+| `maxStackFrames` | `number` | `10` | Keeps at most _N_ consecutive application stack frames per trace; the remainder collapses into a `[... K more application stack frames ...]` marker. `0` keeps every frame. Internal library frames are hidden separately by the internal-stack collapser. |
 
 ```ts
 import { processLogFile } from 'logstrip';

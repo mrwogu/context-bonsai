@@ -26,7 +26,8 @@ export type LogStripDecisionReason =
   | 'low-score'
   | 'progress'
   | 'sample-limit'
-  | 'severity';
+  | 'severity'
+  | 'stack-truncated';
 
 export interface LogStripLineDecision {
   line: string;
@@ -76,6 +77,18 @@ export interface LogStripOptions {
   multilingual?: boolean;
   collapseBlocks?: number;
   adaptiveContext?: boolean;
+  /**
+   * Merge near-identical lines whose only difference is a number after a
+   * generic word label (template mining). Default: on; set false to require
+   * exact post-sanitization matches for [xN] folding.
+   */
+  templateMining?: boolean;
+  /**
+   * Keep at most N consecutive application stack frames per trace; the rest
+   * collapse into a single "[... K more application stack frames ...]"
+   * marker. Default: 10. Set 0 to keep every frame.
+   */
+  maxStackFrames?: number;
 }
 
 export interface LogStripStats {
