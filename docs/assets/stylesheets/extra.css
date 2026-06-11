@@ -633,6 +633,45 @@ body,
 .logstrip-demo__pre .det  { color: rgba(164, 255, 175, 0.8); }
 .logstrip-demo__pre .scan { color: #ff8b8b; }
 
+/* ----- Morph animation: raw lines fold into the clean output ----- */
+
+.logstrip-demo__ln {
+  display: block;
+  max-height: 1.4rem;
+  overflow: hidden;
+  transition: opacity 0.4s ease, max-height 0.45s ease 0.08s, transform 0.4s ease;
+}
+
+.logstrip-demo__ln.is-dropping {
+  opacity: 0;
+  max-height: 0;
+}
+
+.logstrip-demo__ln.is-merging {
+  opacity: 0;
+  max-height: 0;
+  transform: translateY(-0.65rem);
+}
+
+.logstrip-demo__ln.is-swapped {
+  animation: logstrip-ln-flash 0.8s ease;
+}
+
+@keyframes logstrip-ln-flash {
+  0% { background: rgba(164, 255, 175, 0.22); }
+  100% { background: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logstrip-demo__ln {
+    transition: none;
+  }
+
+  .logstrip-demo__ln.is-swapped {
+    animation: none;
+  }
+}
+
 .logstrip-demo__agent-card {
   position: absolute;
   left: 0.75rem;
