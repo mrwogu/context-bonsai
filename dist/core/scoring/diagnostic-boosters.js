@@ -28,6 +28,10 @@ exports.DIAGNOSTIC_BOOSTERS = [
     { pattern: /\byarn\s+error\b/iu, score: 60, label: 'yarn-error' },
     // ── Generic diagnostic keywords ──────────────────────────────────
     { pattern: /\b(?:Error|Exception|AssertionError|TypeError|ReferenceError|SyntaxError|RangeError|NullPointerException|Unhandled|failed|failure|fatal|panic|refused|timeout|timed\s+out|unreachable|unavailable|disconnected|killed|aborted|crashed|terminated|unauthorized)\b/iu, score: 50, label: 'diagnostic' },
+    // ── Compound exception class names (FooBarException, AcmeError) ──
+    { pattern: /\b[A-Z]\w+(?:Exception|Error|Fault)\b/u, score: 50, label: 'compound-exception' },
+    // ── Rust panics ──────────────────────────────────────────────────
+    { pattern: /^thread '[^']*' panicked at\b/u, score: 60, label: 'rust-panic' },
     // ── Go test failures ─────────────────────────────────────────────
     { pattern: /---\s*FAIL:/u, score: 50, label: 'go-test-fail' },
     // ── Make errors ──────────────────────────────────────────────────
@@ -46,13 +50,18 @@ exports.DIAGNOSTIC_BOOSTERS = [
     { pattern: /\bHTTP\/\d\.\d"\s+5\d{2}\b/u, score: 50, label: 'http-5xx' },
     { pattern: /\bHTTP\/\d\.\d"\s+4\d{2}\b/u, score: 20, label: 'http-4xx' },
     // ── Stack frame patterns ─────────────────────────────────────────
-    { pattern: /^\s*at\s+.*(?:\(|\s).+:\d+:\d+\)?$/, score: 40, label: 'js-stack-frame' },
-    { pattern: /^\s*at\s+[\w$_.<>/]+\([^)]+:\d+\)$/, score: 40, label: 'java-stack-frame' },
-    { pattern: /^\s*File\s+"[^"]+",\s+line\s+\d+,\s+in\s+.+$/, score: 40, label: 'python-stack-frame' },
+    { pattern: /^\s*at\s+.*(?:\(|\s).+:(?:\d+|\[NN\]):(?:\d+|\[NN\])\)?$/, score: 40, label: 'js-stack-frame' },
+    { pattern: /^\s*at\s+[\w$_.<>/]+\([^)]+:(?:\d+|\[NN\])\)$/, score: 40, label: 'java-stack-frame' },
+    { pattern: /^\s*File\s+"[^"]+",\s+line\s+(?:\d+|\[NN\]),\s+in\s+.+$/, score: 40, label: 'python-stack-frame' },
     { pattern: /^\s*(?:(?:[\w.-]+\/)+[\w./-]+|[\w.-]+\.\(\*?[\w.]+\)\.[\w.]+|[\w.-]+\.[A-Z]\w*)\(.*\)$/, score: 40, label: 'go-stack-frame' },
-    { pattern: /^\s*(?:\/[^\s]+|[A-Za-z]:[\\/][^\s]+):\d+(?:\s+\+\S+)?$/, score: 40, label: 'go-file-frame' },
+    { pattern: /^\s*(?:\/[^\s]+|[A-Za-z]:[\\/][^\s]+):(?:\d+|\[NN\])(?:\s+\+\S+)?$/, score: 40, label: 'go-file-frame' },
     { pattern: /^\s*goroutine\s+\d+\s+\[.+\]:$/iu, score: 40, label: 'go-goroutine' },
     { pattern: /^Traceback \(most recent call last\):$/, score: 40, label: 'python-traceback' },
+    { pattern: /^\s*from\s+\S+:\d+:in\s+[`'].+$/u, score: 40, label: 'ruby-stack-frame' },
+    { pattern: /^\s*\d+:\s+(?:0x[0-9a-f]+\s+-\s+)?\S*(?:::|[<>])\S*$/u, score: 40, label: 'rust-backtrace-frame' },
+    { pattern: /^\s*at\s+\S+\.rs:\d+:\d+:?$/u, score: 40, label: 'rust-file-frame' },
+    { pattern: /^\s*at\s+[\w.<>`+\[\],$]+\([^)]*\)(?:\s+in\s+\S+:line\s+\d+)?$/u, score: 40, label: 'csharp-stack-frame' },
+    { pattern: /^\s*#\d+\s+(?:\{main\}|\S+\(\d+\):\s+\S+.*)$/u, score: 40, label: 'php-stack-frame' },
     { pattern: /^\s*\.\.\. \d+ more$/, score: 40, label: 'stack-more' },
 ];
 /**

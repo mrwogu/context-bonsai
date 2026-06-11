@@ -1,9 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.FORMAT_DRIFT_THRESHOLD = void 0;
 exports.createFormatVoter = createFormatVoter;
 exports.voteFormat = voteFormat;
+exports.observeFormatDrift = observeFormatDrift;
 exports.decideFormat = decideFormat;
 const format_detector_js_1 = require("./format-detector.js");
+/**
+ * Number of consecutive recognizable lines in a *different* format that a
+ * decided voter tolerates before re-electing. Catches mid-stream format
+ * drift (e.g. plaintext boot output followed by a JSON application log).
+ */
+exports.FORMAT_DRIFT_THRESHOLD = 20;
 function createFormatVoter(sampleSize) {
     return {
         votes: new Map(),
@@ -12,6 +20,7 @@ function createFormatVoter(sampleSize) {
         sampleSize: Math.max(2, Math.floor(sampleSize)),
         decided: false,
         result: undefined,
+        driftMismatches: 0,
     };
 }
 /**
@@ -37,6 +46,25 @@ function voteFormat(voter, line) {
         return finalize(voter);
     }
     return undefined;
+}
+/**
+ * Watch a decided voter for sustained format drift. Returns the new format
+ * once FORMAT_DRIFT_THRESHOLD consecutive recognizable lines disagree with
+ * the elected result; any agreeing (or unrecognizable) line resets the run.
+ */
+function observeFormatDrift(voter, line) {
+    const fmt = (0, format_detector_js_1.detectFormat)(line);
+    if (fmt === 'unknown' || fmt === voter.result) {
+        voter.driftMismatches = 0;
+        return undefined;
+    }
+    voter.driftMismatches += 1;
+    if (voter.driftMismatches < exports.FORMAT_DRIFT_THRESHOLD) {
+        return undefined;
+    }
+    voter.result = fmt;
+    voter.driftMismatches = 0;
+    return fmt;
 }
 /** Force a decision (e.g. at end of stream when fewer than N lines were seen). */
 function decideFormat(voter) {

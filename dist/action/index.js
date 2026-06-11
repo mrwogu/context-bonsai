@@ -25824,8 +25824,11 @@ var CONTEXT_WINDOW_AFTER = 2;
 var SCORE_KEEP_THRESHOLD = 40;
 var TFIDF_REPEAT_THRESHOLD = 3;
 var TFIDF_PENALTY = 8;
+var RARITY_BOOST = 5;
+var RARITY_MIN_INPUT_LINES = 1e3;
 var MAX_REPEAT_DELTA_VALUES = 3;
 var DEFAULT_FORMAT_SAMPLE = 50;
+var DEFAULT_MAX_STACK_FRAMES = 10;
 var ADAPTIVE_CONTEXT_DENSE_GAP = 2;
 var ADAPTIVE_CONTEXT_SPARSE_GAP = 12;
 var ADAPTIVE_CONTEXT_AFTER_EXPANSION = 2;
@@ -25853,10 +25856,21 @@ var STANDALONE_REPEAT_LABELS = /* @__PURE__ */ new Set([
   "thread",
   "worker"
 ]);
-function createRepeatSignature(line) {
+var STANDALONE_VALUE_BLOCKLIST = /* @__PURE__ */ new Set([
+  "code",
+  "errno",
+  "error",
+  "exit",
+  "line",
+  "signal",
+  "status",
+  "version"
+]);
+var TEMPLATE_LABEL_PATTERN = /^[A-Za-z][\w-]*:?$/u;
+function createRepeatSignature(line, template = false) {
   const tokens = tokenizeRepeatLine(line);
   return tokens.map((token, index) => {
-    const tokenValue = splitRepeatToken(token, tokens[index - 1]);
+    const tokenValue = splitRepeatToken(token, tokens[index - 1], template);
     return tokenValue === void 0 ? token : `${tokenValue.prefix}[VALUE]`;
   }).join(" ");
 }
@@ -25873,7 +25887,7 @@ function createRepeatGroup(line, score = 0, signature) {
     score
   };
 }
-function addRepeatGroupLine(group, line, score = 0) {
+function addRepeatGroupLine(group, line, score = 0, template = false) {
   const tokens = tokenizeRepeatLine(line);
   if (score > group.score) {
     group.score = score;
@@ -25881,9 +25895,10 @@ function addRepeatGroupLine(group, line, score = 0) {
   for (const [index, firstToken] of group.firstTokens.entries()) {
     const firstValue = splitRepeatToken(
       firstToken,
-      group.firstTokens[index - 1]
+      group.firstTokens[index - 1],
+      template
     );
-    const nextValue = splitRepeatToken(tokens[index], tokens[index - 1]);
+    const nextValue = splitRepeatToken(tokens[index], tokens[index - 1], template);
     if (firstValue === void 0 || nextValue === void 0 || firstValue.prefix !== nextValue.prefix || firstValue.value === nextValue.value) {
       continue;
     }
@@ -25947,7 +25962,7 @@ function formatDurationMs(ms) {
 function tokenizeRepeatLine(line) {
   return line.trim().split(/\s+/u);
 }
-function splitRepeatToken(token, previousToken) {
+function splitRepeatToken(token, previousToken, template = false) {
   const separator = token.indexOf("=");
   if (separator > 0 && separator < token.length - 1) {
     return {
@@ -25955,13 +25970,20 @@ function splitRepeatToken(token, previousToken) {
       value: token.slice(separator + 1)
     };
   }
-  if (previousToken !== void 0 && STANDALONE_REPEAT_LABELS.has(previousToken.toLowerCase()) && STANDALONE_REPEAT_VALUE_PATTERN.test(token)) {
+  if (previousToken !== void 0 && STANDALONE_REPEAT_VALUE_PATTERN.test(token) && (template ? isTemplateMergeLabel(previousToken) : STANDALONE_REPEAT_LABELS.has(previousToken.toLowerCase()))) {
     return {
       prefix: "",
       value: token
     };
   }
   return void 0;
+}
+function isTemplateMergeLabel(previousToken) {
+  if (!TEMPLATE_LABEL_PATTERN.test(previousToken)) {
+    return false;
+  }
+  const label = previousToken.replace(/:$/u, "").toLowerCase();
+  return !STANDALONE_VALUE_BLOCKLIST.has(label);
 }
 
 // src/core/scoring/diagnostic-boosters.ts
@@ -25984,6 +26006,10 @@ var DIAGNOSTIC_BOOSTERS = [
   { pattern: /\byarn\s+error\b/iu, score: 60, label: "yarn-error" },
   // ── Generic diagnostic keywords ──────────────────────────────────
   { pattern: /\b(?:Error|Exception|AssertionError|TypeError|ReferenceError|SyntaxError|RangeError|NullPointerException|Unhandled|failed|failure|fatal|panic|refused|timeout|timed\s+out|unreachable|unavailable|disconnected|killed|aborted|crashed|terminated|unauthorized)\b/iu, score: 50, label: "diagnostic" },
+  // ── Compound exception class names (FooBarException, AcmeError) ──
+  { pattern: /\b[A-Z]\w+(?:Exception|Error|Fault)\b/u, score: 50, label: "compound-exception" },
+  // ── Rust panics ──────────────────────────────────────────────────
+  { pattern: /^thread '[^']*' panicked at\b/u, score: 60, label: "rust-panic" },
   // ── Go test failures ─────────────────────────────────────────────
   { pattern: /---\s*FAIL:/u, score: 50, label: "go-test-fail" },
   // ── Make errors ──────────────────────────────────────────────────
@@ -26002,13 +26028,18 @@ var DIAGNOSTIC_BOOSTERS = [
   { pattern: /\bHTTP\/\d\.\d"\s+5\d{2}\b/u, score: 50, label: "http-5xx" },
   { pattern: /\bHTTP\/\d\.\d"\s+4\d{2}\b/u, score: 20, label: "http-4xx" },
   // ── Stack frame patterns ─────────────────────────────────────────
-  { pattern: /^\s*at\s+.*(?:\(|\s).+:\d+:\d+\)?$/, score: 40, label: "js-stack-frame" },
-  { pattern: /^\s*at\s+[\w$_.<>/]+\([^)]+:\d+\)$/, score: 40, label: "java-stack-frame" },
-  { pattern: /^\s*File\s+"[^"]+",\s+line\s+\d+,\s+in\s+.+$/, score: 40, label: "python-stack-frame" },
+  { pattern: /^\s*at\s+.*(?:\(|\s).+:(?:\d+|\[NN\]):(?:\d+|\[NN\])\)?$/, score: 40, label: "js-stack-frame" },
+  { pattern: /^\s*at\s+[\w$_.<>/]+\([^)]+:(?:\d+|\[NN\])\)$/, score: 40, label: "java-stack-frame" },
+  { pattern: /^\s*File\s+"[^"]+",\s+line\s+(?:\d+|\[NN\]),\s+in\s+.+$/, score: 40, label: "python-stack-frame" },
   { pattern: /^\s*(?:(?:[\w.-]+\/)+[\w./-]+|[\w.-]+\.\(\*?[\w.]+\)\.[\w.]+|[\w.-]+\.[A-Z]\w*)\(.*\)$/, score: 40, label: "go-stack-frame" },
-  { pattern: /^\s*(?:\/[^\s]+|[A-Za-z]:[\\/][^\s]+):\d+(?:\s+\+\S+)?$/, score: 40, label: "go-file-frame" },
+  { pattern: /^\s*(?:\/[^\s]+|[A-Za-z]:[\\/][^\s]+):(?:\d+|\[NN\])(?:\s+\+\S+)?$/, score: 40, label: "go-file-frame" },
   { pattern: /^\s*goroutine\s+\d+\s+\[.+\]:$/iu, score: 40, label: "go-goroutine" },
   { pattern: /^Traceback \(most recent call last\):$/, score: 40, label: "python-traceback" },
+  { pattern: /^\s*from\s+\S+:\d+:in\s+[`'].+$/u, score: 40, label: "ruby-stack-frame" },
+  { pattern: /^\s*\d+:\s+(?:0x[0-9a-f]+\s+-\s+)?\S*(?:::|[<>])\S*$/u, score: 40, label: "rust-backtrace-frame" },
+  { pattern: /^\s*at\s+\S+\.rs:\d+:\d+:?$/u, score: 40, label: "rust-file-frame" },
+  { pattern: /^\s*at\s+[\w.<>`+\[\],$]+\([^)]*\)(?:\s+in\s+\S+:line\s+\d+)?$/u, score: 40, label: "csharp-stack-frame" },
+  { pattern: /^\s*#\d+\s+(?:\{main\}|\S+\(\d+\):\s+\S+.*)$/u, score: 40, label: "php-stack-frame" },
   { pattern: /^\s*\.\.\. \d+ more$/, score: 40, label: "stack-more" }
 ];
 function buildSourceBoosterPatterns() {
@@ -27390,16 +27421,27 @@ var CountMinSketch = class {
   /**
    * Increment the count for a key and return the new estimated count
    * (the minimum among all hash tables — the count-min estimate).
+   *
+   * Uses conservative update: only cells currently at the minimum are
+   * raised. Cells inflated by hash collisions with hotter keys are left
+   * untouched, which cuts overestimation error several-fold at no memory
+   * cost — important because overestimates feed false TF-IDF penalties.
    */
   increment(key) {
+    const indexes = new Array(this.depth);
     let min = Number.POSITIVE_INFINITY;
     for (let i = 0; i < this.depth; i++) {
       const idx = this.hash(key, i);
-      const next = this.tables[i][idx] + 1;
-      this.tables[i][idx] = next;
-      if (next < min) min = next;
+      indexes[i] = idx;
+      if (this.tables[i][idx] < min) min = this.tables[i][idx];
     }
-    return min;
+    const next = min + 1;
+    for (let i = 0; i < this.depth; i++) {
+      if (this.tables[i][indexes[i]] < next) {
+        this.tables[i][indexes[i]] = next;
+      }
+    }
+    return next;
   }
 };
 
@@ -27438,6 +27480,7 @@ function groupHttpStatusCodes(line) {
 }
 
 // src/core/formats/format-voter.ts
+var FORMAT_DRIFT_THRESHOLD = 20;
 function createFormatVoter(sampleSize) {
   return {
     votes: /* @__PURE__ */ new Map(),
@@ -27445,7 +27488,8 @@ function createFormatVoter(sampleSize) {
     samples: 0,
     sampleSize: Math.max(2, Math.floor(sampleSize)),
     decided: false,
-    result: void 0
+    result: void 0,
+    driftMismatches: 0
   };
 }
 function voteFormat(voter, line) {
@@ -27466,6 +27510,20 @@ function voteFormat(voter, line) {
     return finalize(voter);
   }
   return void 0;
+}
+function observeFormatDrift(voter, line) {
+  const fmt = detectFormat(line);
+  if (fmt === "unknown" || fmt === voter.result) {
+    voter.driftMismatches = 0;
+    return void 0;
+  }
+  voter.driftMismatches += 1;
+  if (voter.driftMismatches < FORMAT_DRIFT_THRESHOLD) {
+    return void 0;
+  }
+  voter.result = fmt;
+  voter.driftMismatches = 0;
+  return fmt;
 }
 function decideFormat(voter) {
   if (voter.decided) {
@@ -27567,6 +27625,47 @@ function stackWindowSignature(line) {
   return normalizeStackFrameLineCol(line).replace(GO_FRAME_OFFSET, "+0x[NN]").replace(GOROUTINE_ID, "goroutine [NN]").replace(HEX_ADDRESS, "0x[NN]");
 }
 
+// src/core/sanitize/entropy-secret.ts
+var ENTROPY_SECRET_THRESHOLD = 4.2;
+var ENTROPY_CANDIDATE_PATTERN = /[A-Za-z0-9+_-]{20,}/gu;
+var BASE64_SPECIAL_PATTERN = /\+/u;
+function shannonEntropy(value) {
+  if (value.length === 0) {
+    return 0;
+  }
+  const counts = /* @__PURE__ */ new Map();
+  for (const char of value) {
+    counts.set(char, (counts.get(char) ?? 0) + 1);
+  }
+  let entropy = 0;
+  for (const count of counts.values()) {
+    const p = count / value.length;
+    entropy -= p * Math.log2(p);
+  }
+  return entropy;
+}
+function looksLikeSecret(token) {
+  if (!/\d/u.test(token) || !/[a-zA-Z]/u.test(token)) {
+    return false;
+  }
+  const mixedCase = /[a-z]/u.test(token) && /[A-Z]/u.test(token);
+  if (!mixedCase && !BASE64_SPECIAL_PATTERN.test(token)) {
+    return false;
+  }
+  return shannonEntropy(token) >= ENTROPY_SECRET_THRESHOLD;
+}
+function maskHighEntropyTokens(line) {
+  ENTROPY_CANDIDATE_PATTERN.lastIndex = 0;
+  if (!ENTROPY_CANDIDATE_PATTERN.test(line)) {
+    return line;
+  }
+  ENTROPY_CANDIDATE_PATTERN.lastIndex = 0;
+  return line.replace(
+    ENTROPY_CANDIDATE_PATTERN,
+    (token) => looksLikeSecret(token) ? "[REDACTED]" : token
+  );
+}
+
 // src/core/sanitize/sanitize-line.ts
 var UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/giu;
 var ISO_TIME_PATTERN = /\b\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})?)?\b/gu;
@@ -27599,17 +27698,65 @@ function sanitizeLine(line, preserveIdSuffix = 0) {
   const uuidReplacement = preserveIdSuffix > 0 ? (m) => `[ID:${m.slice(-preserveIdSuffix)}]` : () => "[ID]";
   const hexHashReplacement = preserveIdSuffix > 0 ? (m) => `[HASH:${m.slice(-preserveIdSuffix)}]` : () => "[HASH]";
   const alnumHashReplacement = preserveIdSuffix > 0 ? (m) => `[HASH:${m.slice(-preserveIdSuffix)}]` : () => "[HASH]";
-  let result = line.replace(ANSI_ESCAPE_PATTERN, "").replace(UUID_PATTERN, uuidReplacement).replace(UTC_TIME_PATTERN, "[TIME]").replace(APACHE_ERROR_TIME_PATTERN, "[TIME]").replace(COMMON_LOG_TIME_PATTERN, "[TIME]").replace(NGINX_ERROR_TIME_PATTERN, "[TIME]").replace(ISO_TIME_PATTERN, "[TIME]").replace(IPV4_WITH_PORT_PATTERN, "[IP]:[PORT]").replace(IPV4_PATTERN, "[IP]").replace(IPV6_PATTERN, "[IPV6]").replace(
-    CONNECTION_STRING_PATTERN,
-    (match, pwd) => match.replace(pwd, "[REDACTED]")
-  ).replace(GITHUB_TOKEN_PATTERN, "[REDACTED]").replace(JWT_TOKEN_PATTERN, "[JWT]").replace(SLACK_TOKEN_PATTERN, "[REDACTED]").replace(STRIPE_KEY_PATTERN, "[REDACTED]").replace(NPM_TOKEN_PATTERN, "[REDACTED]").replace(GOOGLE_API_KEY_PATTERN, "[REDACTED]").replace(TWILIO_KEY_PATTERN, "[REDACTED]").replace(SENDGRID_KEY_PATTERN, "[REDACTED]").replace(AUTHORIZATION_HEADER_PATTERN, "Authorization: [REDACTED]").replace(SECRET_FIELD_PATTERN, (match) => {
+  let result = line;
+  if (result.includes("\x1B")) result = result.replace(ANSI_ESCAPE_PATTERN, "");
+  if (result.includes("-")) {
+    result = result.replace(UUID_PATTERN, uuidReplacement).replace(ISO_TIME_PATTERN, "[TIME]");
+  }
+  if (result.includes("GMT") || result.includes("UTC")) {
+    result = result.replace(UTC_TIME_PATTERN, "[TIME]");
+  }
+  if (result.includes("[")) {
+    result = result.replace(APACHE_ERROR_TIME_PATTERN, "[TIME]");
+  }
+  if (result.includes("/")) {
+    result = result.replace(COMMON_LOG_TIME_PATTERN, "[TIME]").replace(NGINX_ERROR_TIME_PATTERN, "[TIME]");
+  }
+  if (result.includes(".")) {
+    result = result.replace(IPV4_WITH_PORT_PATTERN, "[IP]:[PORT]").replace(IPV4_PATTERN, "[IP]");
+  }
+  if (result.includes(":")) {
+    result = result.replace(IPV6_PATTERN, "[IPV6]");
+  }
+  if (result.includes("://")) {
+    result = result.replace(
+      CONNECTION_STRING_PATTERN,
+      (match, pwd) => match.replace(pwd, "[REDACTED]")
+    );
+  }
+  if (result.includes("gh")) result = result.replace(GITHUB_TOKEN_PATTERN, "[REDACTED]");
+  if (result.includes("eyJ")) result = result.replace(JWT_TOKEN_PATTERN, "[JWT]");
+  if (result.includes("xox")) result = result.replace(SLACK_TOKEN_PATTERN, "[REDACTED]");
+  if (result.includes("_live_") || result.includes("_test_")) {
+    result = result.replace(STRIPE_KEY_PATTERN, "[REDACTED]");
+  }
+  if (result.includes("npm_")) result = result.replace(NPM_TOKEN_PATTERN, "[REDACTED]");
+  if (result.includes("AIza")) result = result.replace(GOOGLE_API_KEY_PATTERN, "[REDACTED]");
+  if (result.includes("SK") || result.includes("AC")) {
+    result = result.replace(TWILIO_KEY_PATTERN, "[REDACTED]");
+  }
+  if (result.includes("SG.")) result = result.replace(SENDGRID_KEY_PATTERN, "[REDACTED]");
+  if (result.includes("uthorization")) {
+    result = result.replace(AUTHORIZATION_HEADER_PATTERN, "Authorization: [REDACTED]");
+  }
+  result = result.replace(SECRET_FIELD_PATTERN, (match) => {
     const sepIdx = match.search(/[:=]\s*/u);
     const sepEnd = match.slice(sepIdx).match(/^[:=]\s*/u)[0].length;
     return `${match.slice(0, sepIdx + sepEnd)}[REDACTED]`;
-  }).replace(K8S_RELATIVE_DURATION_PATTERN, "[AGO]").replace(EMAIL_PATTERN, "[EMAIL]").replace(HEX_HASH_PATTERN, hexHashReplacement).replace(ALPHANUMERIC_HASH_PATTERN, alnumHashReplacement).replace(AWS_ACCESS_KEY_PATTERN, "[REDACTED]").replace(
-    AWS_ARN_ACCOUNT_PATTERN,
-    (match, accountId) => match.replace(accountId, "[ACCOUNT]")
-  ).replace(/[ \t]+$/u, "");
+  }).replace(K8S_RELATIVE_DURATION_PATTERN, "[AGO]");
+  if (result.includes("@")) result = result.replace(EMAIL_PATTERN, "[EMAIL]");
+  result = result.replace(HEX_HASH_PATTERN, hexHashReplacement).replace(ALPHANUMERIC_HASH_PATTERN, alnumHashReplacement);
+  if (result.includes("AKIA") || result.includes("ABIA") || result.includes("ASIA")) {
+    result = result.replace(AWS_ACCESS_KEY_PATTERN, "[REDACTED]");
+  }
+  if (result.includes("arn:aws:")) {
+    result = result.replace(
+      AWS_ARN_ACCOUNT_PATTERN,
+      (match, accountId) => match.replace(accountId, "[ACCOUNT]")
+    );
+  }
+  result = maskHighEntropyTokens(result);
+  result = result.replace(/[ \t]+$/u, "");
   result = groupHttpStatusCodes(result);
   return result;
 }
@@ -27697,13 +27844,19 @@ function isMultilingualDiagnosticLine(line) {
 var IGNORED_LOG_TAG_PATTERN = /\[(?:INFO|DEBUG|TRACE|VERBOSE)\]|"level"\s*:\s*"(?:info|debug|trace|verbose)"/iu;
 var APACHE_ROUTINE_NOTICE_PATTERN = /^(?:\[(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?\s+\d{4}\]|\[TIME\])\s+\[notice\]\s+(?:workerEnv\.init\(\) ok\b|jk2_init\(\) Found child \d+ in scoreboard slot \d+\b)/iu;
 var IMPORTANT_LOG_TAG_PATTERN = /\[(?:ERROR|WARN|FATAL|CRITICAL|FAIL)\]/iu;
-var STACK_FRAME_PATTERN = /^\s*at\s+.*(?:\(|\s).+:\d+:\d+\)?$/;
-var JAVA_STACK_FRAME_PATTERN = /^\s*at\s+[\w$_.<>/]+\([^)]+:\d+\)$/;
-var PYTHON_STACK_FRAME_PATTERN = /^\s*File\s+"[^"]+",\s+line\s+\d+,\s+in\s+.+$/;
+var STACK_FRAME_PATTERN = /^\s*at\s+.*(?:\(|\s).+:(?:\d+|\[NN\]):(?:\d+|\[NN\])\)?$/;
+var JAVA_STACK_FRAME_PATTERN = /^\s*at\s+[\w$_.<>/]+\([^)]+:(?:\d+|\[NN\])\)$/;
+var PYTHON_STACK_FRAME_PATTERN = /^\s*File\s+"[^"]+",\s+line\s+(?:\d+|\[NN\]),\s+in\s+.+$/;
 var GO_STACK_FRAME_PATTERN = /^\s*(?:(?:[\w.-]+\/)+[\w./-]+|[\w.-]+\.\(\*?[\w.]+\)\.[\w.]+|[\w.-]+\.[A-Z]\w*)\(.*\)$/;
-var GO_FILE_FRAME_PATTERN = /^\s*(?:\/[^\s]+|[A-Za-z]:[\\/][^\s]+):\d+(?:\s+\+\S+)?$/;
+var GO_FILE_FRAME_PATTERN = /^\s*(?:\/[^\s]+|[A-Za-z]:[\\/][^\s]+):(?:\d+|\[NN\])(?:\s+\+\S+)?$/;
 var GO_GOROUTINE_PATTERN = /^\s*goroutine\s+\d+\s+\[.+\]:$/iu;
 var PYTHON_TRACEBACK_PATTERN = /^Traceback \(most recent call last\):$/;
+var RUBY_STACK_FRAME_PATTERN = /^\s*from\s+\S+:\d+:in\s+[`'].+$/u;
+var RUST_PANIC_PATTERN = /^thread '[^']*' panicked at\b/u;
+var RUST_BACKTRACE_FRAME_PATTERN = /^\s*\d+:\s+(?:0x[0-9a-f]+\s+-\s+)?\S*(?:::|[<>])\S*$/u;
+var RUST_FILE_FRAME_PATTERN = /^\s*at\s+\S+\.rs:\d+:\d+:?$/u;
+var CSHARP_STACK_FRAME_PATTERN = /^\s*at\s+[\w.<>`+\[\],$]+\([^)]*\)(?:\s+in\s+\S+:line\s+\d+)?$/u;
+var PHP_STACK_FRAME_PATTERN = /^\s*#\d+\s+(?:\{main\}|\S+\(\d+\):\s+\S+.*)$/u;
 var STACK_MORE_PATTERN = /^\s*\.\.\. \d+ more$/;
 var GITHUB_ACTIONS_ANNOTATION_PATTERN = /^::(?:error|warning|notice)\b/u;
 var GRADLE_FAILURE_PATTERN = /\b(?:Execution failed|What went wrong|BUILD FAILED|Task failed with an exception)\b/iu;
@@ -27715,20 +27868,24 @@ var JENKINS_MARKER_PATTERN = /\[(?:Pipeline|Checks|FCMaker)\]/u;
 var AZURE_PIPELINE_PATTERN = /^##vso\[task\.(?:LogIssue|Complete)\b/u;
 var TEAMCITY_MARKER_PATTERN = /^##teamcity\[(?:buildProblem|compilationFinished|message)\b/u;
 var DIAGNOSTIC_PATTERN = /\b(?:Error|Exception|AssertionError|TypeError|ReferenceError|SyntaxError|RangeError|NullPointerException|Unhandled|failed|failure|fatal|panic|refused|timeout|timed\s+out|unreachable|unavailable|disconnected|killed|aborted|crashed|terminated|unauthorized)\b/iu;
+var COMPOUND_EXCEPTION_PATTERN = /\b[A-Z]\w+(?:Exception|Error|Fault)\b/u;
 var JSON_SEVERITY_PATTERN = /"(?:level|severity)"\s*:\s*"(?:fatal|error|critical|warn|warning)"/iu;
 var NPM_ERROR_PATTERN = /\b(?:npm|pnpm)\s+ERR!/iu;
 var YARN_ERROR_PATTERN = /\byarn\s+error\b/iu;
 var SCANNER_FINDING_PATTERN = /\b(?:CVE-\d{4}-\d{4,7}|GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|vulnerabilit(?:y|ies)|severity:\s*(?:critical|high|medium)|(?:critical|high)\s+severity)\b/iu;
 var CONTAINER_FAILURE_PATTERN = /\b(?:CrashLoopBackOff|ImagePullBackOff|ErrImagePull|OOMKilled|Back[- ]off restarting failed container|failed to pull image|(?:containerd|runc).*?(?:failed|error|panic|timeout|refused)|(?:failed|error|panic|timeout|refused).*?(?:containerd|runc)|rpc error: code = Unknown desc = failed to resolve reference)\b/iu;
-var INTERNAL_STACK_PATTERN = /(?:node_modules[\\/]|node:internal|internal[\\/]modules|bootstrap_node|[\\/]usr[\\/]lib[\\/]|[\\/]usr[\\/]local[\\/]lib[\\/]|[\\/]usr[\\/]local[\\/]go[\\/]src[\\/]runtime[\\/]|site-packages[\\/]|dist-packages[\\/]|\.venv[\\/]|java\.base[\\/]|jdk\.internal|org\.springframework\.|[\\/]pkg[\\/]mod[\\/]|\.cargo[\\/]registry[\\/])/iu;
+var INTERNAL_STACK_PATTERN = /(?:node_modules[\\/]|node:internal|internal[\\/]modules|bootstrap_node|[\\/]usr[\\/]lib[\\/]|[\\/]usr[\\/]local[\\/]lib[\\/]|[\\/]usr[\\/]local[\\/]go[\\/]src[\\/]runtime[\\/]|site-packages[\\/]|dist-packages[\\/]|\.venv[\\/]|java\.base[\\/]|jdk\.internal|org\.springframework\.|[\\/]pkg[\\/]mod[\\/]|\.cargo[\\/]registry[\\/]|[\\/]gems[\\/]|vendor[\\/]bundle[\\/]|[\\/]rustc[\\/]|\bat System\.)/iu;
 var LOW_EXTRA_TAG_PATTERN = /\[(?:NOTICE|STATUS)\]/iu;
 var AGGRESSIVE_WARN_PATTERN = /\[(?:WARN|WARNING)\]/iu;
 var AGGRESSIVE_WARNING_SIGNAL_PATTERN = DIAGNOSTIC_PATTERN;
 function isIgnoredLogLine(line) {
   return IGNORED_LOG_TAG_PATTERN.test(line) || APACHE_ROUTINE_NOTICE_PATTERN.test(line);
 }
+function isStackFrameLine(line) {
+  return STACK_FRAME_PATTERN.test(line) || JAVA_STACK_FRAME_PATTERN.test(line) || PYTHON_STACK_FRAME_PATTERN.test(line) || GO_STACK_FRAME_PATTERN.test(line) || GO_FILE_FRAME_PATTERN.test(line) || RUBY_STACK_FRAME_PATTERN.test(line) || RUST_BACKTRACE_FRAME_PATTERN.test(line) || RUST_FILE_FRAME_PATTERN.test(line) || CSHARP_STACK_FRAME_PATTERN.test(line) || PHP_STACK_FRAME_PATTERN.test(line);
+}
 function looksLikeDiagnosticLine(line) {
-  return STACK_FRAME_PATTERN.test(line) || JAVA_STACK_FRAME_PATTERN.test(line) || PYTHON_STACK_FRAME_PATTERN.test(line) || GO_STACK_FRAME_PATTERN.test(line) || GO_FILE_FRAME_PATTERN.test(line) || GO_GOROUTINE_PATTERN.test(line) || PYTHON_TRACEBACK_PATTERN.test(line) || STACK_MORE_PATTERN.test(line) || DIAGNOSTIC_PATTERN.test(line) || JSON_SEVERITY_PATTERN.test(line) || NPM_ERROR_PATTERN.test(line) || YARN_ERROR_PATTERN.test(line) || SCANNER_FINDING_PATTERN.test(line) || CONTAINER_FAILURE_PATTERN.test(line) || GITHUB_ACTIONS_ANNOTATION_PATTERN.test(line) || GRADLE_FAILURE_PATTERN.test(line) || MAKE_ERROR_PATTERN.test(line) || GO_TEST_FAIL_PATTERN.test(line) || SYSTEMD_STATUS_PATTERN.test(line) || CIRCLECI_STEP_PATTERN.test(line) || JENKINS_MARKER_PATTERN.test(line) || AZURE_PIPELINE_PATTERN.test(line) || TEAMCITY_MARKER_PATTERN.test(line);
+  return isStackFrameLine(line) || GO_GOROUTINE_PATTERN.test(line) || PYTHON_TRACEBACK_PATTERN.test(line) || RUST_PANIC_PATTERN.test(line) || STACK_MORE_PATTERN.test(line) || DIAGNOSTIC_PATTERN.test(line) || COMPOUND_EXCEPTION_PATTERN.test(line) || JSON_SEVERITY_PATTERN.test(line) || NPM_ERROR_PATTERN.test(line) || YARN_ERROR_PATTERN.test(line) || SCANNER_FINDING_PATTERN.test(line) || CONTAINER_FAILURE_PATTERN.test(line) || GITHUB_ACTIONS_ANNOTATION_PATTERN.test(line) || GRADLE_FAILURE_PATTERN.test(line) || MAKE_ERROR_PATTERN.test(line) || GO_TEST_FAIL_PATTERN.test(line) || SYSTEMD_STATUS_PATTERN.test(line) || CIRCLECI_STEP_PATTERN.test(line) || JENKINS_MARKER_PATTERN.test(line) || AZURE_PIPELINE_PATTERN.test(line) || TEAMCITY_MARKER_PATTERN.test(line);
 }
 function isInternalStackTraceLine(line) {
   if (IMPORTANT_LOG_TAG_PATTERN.test(line)) return false;
@@ -27743,14 +27900,14 @@ function estimateTokens(wordCountOrText) {
   const rest = text.length - cjk;
   return Math.ceil(cjk * 1 + rest / 4);
 }
-function scoreLineRelevance(line, aggressiveness, seenCount = 0) {
+function scoreLineRelevance(line, aggressiveness, seenCount = 0, inputLines = 0) {
   if (line.trim().length === 0) return -Infinity;
   if (isIgnoredLogLine(line)) return -Infinity;
   let score = 0;
   for (const b of DIAGNOSTIC_BOOSTERS) {
     if (b.pattern.test(line)) score += b.score;
   }
-  if (aggressiveness === "aggressive" && AGGRESSIVE_WARN_PATTERN.test(line) && !AGGRESSIVE_WARNING_SIGNAL_PATTERN.test(line)) {
+  if (aggressiveness === "aggressive" && AGGRESSIVE_WARN_PATTERN.test(line) && !AGGRESSIVE_WARNING_SIGNAL_PATTERN.test(line) && !COMPOUND_EXCEPTION_PATTERN.test(line)) {
     score = -1;
   }
   if (aggressiveness === "low" && LOW_EXTRA_TAG_PATTERN.test(line)) {
@@ -27758,6 +27915,9 @@ function scoreLineRelevance(line, aggressiveness, seenCount = 0) {
   }
   if (seenCount >= TFIDF_REPEAT_THRESHOLD) {
     score -= TFIDF_PENALTY * (seenCount - TFIDF_REPEAT_THRESHOLD + 1);
+  }
+  if (score > 0 && seenCount === 1 && inputLines >= RARITY_MIN_INPUT_LINES) {
+    score += RARITY_BOOST;
   }
   return score;
 }
@@ -27890,7 +28050,13 @@ async function processLogStream(input, output, options = {}) {
   let linesSinceError = neutralErrorGap(adaptiveBounds);
   const dedupeEnabled = options.dedupe !== false && options.outputFormat !== "jsonl-preserve";
   const collapseRepeatedStacks = options.collapseRepeatedStacks !== false;
-  const repeatSignature = collapseRepeatedStacks ? (line) => stackWindowSignature(line) ?? createRepeatSignature(line) : createRepeatSignature;
+  const templateMining = options.templateMining !== false;
+  const baseRepeatSignature = (line) => createRepeatSignature(line, templateMining);
+  const repeatSignature = collapseRepeatedStacks ? (line) => stackWindowSignature(line) ?? baseRepeatSignature(line) : baseRepeatSignature;
+  const maxStackFrames = options.maxStackFrames !== void 0 ? Math.floor(options.maxStackFrames) : DEFAULT_MAX_STACK_FRAMES;
+  const stackFramesLimited = maxStackFrames > 0;
+  let appStackRun = 0;
+  let truncatedAppFrames = 0;
   const dedupeWindowSize = Math.max(1, Math.floor(options.dedupeWindow ?? 1));
   const rootCause = options.rootCause !== false;
   const multilingual = options.multilingual !== false;
@@ -27929,6 +28095,7 @@ async function processLogStream(input, output, options = {}) {
   const rawLines = (0, import_node_readline.createInterface)({ input, crlfDelay: Infinity });
   const lines = readLogicalLines(rawLines, multilineMode, multilineCtx);
   const pendingGroups = [];
+  const pendingBySignature = /* @__PURE__ */ new Map();
   let hidingInternalStack = false;
   let detectedFormat;
   let outputLineCount = 0;
@@ -27970,9 +28137,14 @@ async function processLogStream(input, output, options = {}) {
     }
     await emitOutputLine(line, group.score);
   };
+  const shiftPendingGroup = () => {
+    const group = pendingGroups.shift();
+    pendingBySignature.delete(group.signature);
+    return group;
+  };
   const flushPendingGroups = async () => {
     while (pendingGroups.length > 0) {
-      await flushGroup(pendingGroups.shift());
+      await flushGroup(shiftPendingGroup());
     }
   };
   const emitCandidate = async (line, score = 0) => {
@@ -27982,14 +28154,16 @@ async function processLogStream(input, output, options = {}) {
       return;
     }
     const signature = repeatSignature(line);
-    const existing = pendingGroups.find((group) => group.signature === signature);
+    const existing = pendingBySignature.get(signature);
     if (existing !== void 0) {
-      addRepeatGroupLine(existing, line, score);
+      addRepeatGroupLine(existing, line, score, templateMining);
       return;
     }
-    pendingGroups.push(createRepeatGroup(line, score, signature));
+    const group = createRepeatGroup(line, score, signature);
+    pendingGroups.push(group);
+    pendingBySignature.set(signature, group);
     if (pendingGroups.length > dedupeWindowSize) {
-      await flushGroup(pendingGroups.shift());
+      await flushGroup(shiftPendingGroup());
     }
   };
   const flushContextBefore = async () => {
@@ -28000,6 +28174,14 @@ async function processLogStream(input, output, options = {}) {
       await emitCandidate(buffered);
     }
     contextBefore.length = 0;
+  };
+  const flushStackTruncation = async () => {
+    if (truncatedAppFrames === 0) {
+      return;
+    }
+    const marker = `[... ${truncatedAppFrames} more application stack frames ...]`;
+    truncatedAppFrames = 0;
+    await emitCandidate(marker, SCORE_KEEP_THRESHOLD);
   };
   const openContextWindow = async () => {
     await flushContextBefore();
@@ -28049,6 +28231,9 @@ async function processLogStream(input, output, options = {}) {
           formatVoteApplied = true;
           if (voted !== void 0) detectedFormat = voted;
         }
+      } else {
+        const drifted = observeFormatDrift(formatVoter, line);
+        if (drifted !== void 0) detectedFormat = drifted;
       }
     }
     if (line.trim().length === 0) {
@@ -28119,6 +28304,8 @@ async function processLogStream(input, output, options = {}) {
     if (!skipInternalStack && (isInternalStackTraceLine(sanitized) || isCustomInternalStack)) {
       stats.hiddenInternalStackLines += physicalLineCount2;
       if (!hidingInternalStack) {
+        appStackRun = 0;
+        await flushStackTruncation();
         await flushContextBefore();
         await emitCandidate(INTERNAL_STACK_MARKER, SCORE_KEEP_THRESHOLD);
         hidingInternalStack = true;
@@ -28167,7 +28354,8 @@ async function processLogStream(input, output, options = {}) {
     let score = jsonParsedScore ?? scoreLineRelevance(
       sanitized,
       effectiveAggressiveness,
-      seenCount
+      seenCount,
+      stats.inputLines
     );
     for (const regex of customDiagnosticRegexes) {
       if (testRegex(regex, sanitized)) {
@@ -28180,6 +28368,27 @@ async function processLogStream(input, output, options = {}) {
     }
     score += scoreSourceDiagnosticBoost(sanitized, detectedSourceState, stats.inputLines);
     if (score >= SCORE_KEEP_THRESHOLD) {
+      if (stackFramesLimited && isStackFrameLine(sanitized)) {
+        appStackRun += 1;
+        if (appStackRun > maxStackFrames) {
+          truncatedAppFrames += 1;
+          stats.droppedLines += physicalLineCount2;
+          recordDecision({
+            line,
+            sanitizedLine: sanitized,
+            kept: false,
+            dropped: true,
+            hardKeep: false,
+            repeated: seenCount > 1,
+            reason: "stack-truncated",
+            score
+          });
+          continue;
+        }
+      } else {
+        appStackRun = 0;
+        await flushStackTruncation();
+      }
       await openContextWindow();
       await emitCandidate(sanitized, score);
       recordDecision({
@@ -28263,6 +28472,7 @@ async function processLogStream(input, output, options = {}) {
       });
     }
   }
+  await flushStackTruncation();
   stats.droppedLines += contextBefore.length;
   contextBefore.length = 0;
   if (!formatVoteApplied && detectedFormat === void 0) {

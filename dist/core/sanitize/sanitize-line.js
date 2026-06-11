@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sanitizeLine = sanitizeLine;
 const format_detector_js_1 = require("../formats/format-detector.js");
+const entropy_secret_js_1 = require("./entropy-secret.js");
 const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/giu;
 const ISO_TIME_PATTERN = /\b\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})?)?\b/gu;
 const UTC_TIME_PATTERN = /\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\s+\d{2}:\d{2}:\d{2}\s+(?:GMT|UTC)\b/giu;
@@ -53,40 +54,82 @@ function sanitizeLine(line, preserveIdSuffix = 0) {
     const alnumHashReplacement = preserveIdSuffix > 0
         ? (m) => `[HASH:${m.slice(-preserveIdSuffix)}]`
         : () => '[HASH]';
-    let result = line
-        .replace(ANSI_ESCAPE_PATTERN, '')
-        .replace(UUID_PATTERN, uuidReplacement)
-        .replace(UTC_TIME_PATTERN, '[TIME]')
-        .replace(APACHE_ERROR_TIME_PATTERN, '[TIME]')
-        .replace(COMMON_LOG_TIME_PATTERN, '[TIME]')
-        .replace(NGINX_ERROR_TIME_PATTERN, '[TIME]')
-        .replace(ISO_TIME_PATTERN, '[TIME]')
-        .replace(IPV4_WITH_PORT_PATTERN, '[IP]:[PORT]')
-        .replace(IPV4_PATTERN, '[IP]')
-        .replace(IPV6_PATTERN, '[IPV6]')
-        // Secrets (before hex/hash to avoid those patterns consuming tokens)
-        .replace(CONNECTION_STRING_PATTERN, (match, pwd) => match.replace(pwd, '[REDACTED]'))
-        .replace(GITHUB_TOKEN_PATTERN, '[REDACTED]')
-        .replace(JWT_TOKEN_PATTERN, '[JWT]')
-        .replace(SLACK_TOKEN_PATTERN, '[REDACTED]')
-        .replace(STRIPE_KEY_PATTERN, '[REDACTED]')
-        .replace(NPM_TOKEN_PATTERN, '[REDACTED]')
-        .replace(GOOGLE_API_KEY_PATTERN, '[REDACTED]')
-        .replace(TWILIO_KEY_PATTERN, '[REDACTED]')
-        .replace(SENDGRID_KEY_PATTERN, '[REDACTED]')
-        .replace(AUTHORIZATION_HEADER_PATTERN, 'Authorization: [REDACTED]')
+    // Each expensive regex is gated by a cheap substring implied by the
+    // pattern itself, so the common case (a plain log line) pays for a few
+    // includes() calls instead of ~25 regex scans.
+    let result = line;
+    if (result.includes('\u001b'))
+        result = result.replace(ANSI_ESCAPE_PATTERN, '');
+    if (result.includes('-')) {
+        result = result
+            .replace(UUID_PATTERN, uuidReplacement)
+            .replace(ISO_TIME_PATTERN, '[TIME]');
+    }
+    if (result.includes('GMT') || result.includes('UTC')) {
+        result = result.replace(UTC_TIME_PATTERN, '[TIME]');
+    }
+    if (result.includes('[')) {
+        result = result.replace(APACHE_ERROR_TIME_PATTERN, '[TIME]');
+    }
+    if (result.includes('/')) {
+        result = result
+            .replace(COMMON_LOG_TIME_PATTERN, '[TIME]')
+            .replace(NGINX_ERROR_TIME_PATTERN, '[TIME]');
+    }
+    if (result.includes('.')) {
+        result = result
+            .replace(IPV4_WITH_PORT_PATTERN, '[IP]:[PORT]')
+            .replace(IPV4_PATTERN, '[IP]');
+    }
+    if (result.includes(':')) {
+        result = result.replace(IPV6_PATTERN, '[IPV6]');
+    }
+    // Secrets (before hex/hash to avoid those patterns consuming tokens)
+    if (result.includes('://')) {
+        result = result.replace(CONNECTION_STRING_PATTERN, (match, pwd) => match.replace(pwd, '[REDACTED]'));
+    }
+    if (result.includes('gh'))
+        result = result.replace(GITHUB_TOKEN_PATTERN, '[REDACTED]');
+    if (result.includes('eyJ'))
+        result = result.replace(JWT_TOKEN_PATTERN, '[JWT]');
+    if (result.includes('xox'))
+        result = result.replace(SLACK_TOKEN_PATTERN, '[REDACTED]');
+    if (result.includes('_live_') || result.includes('_test_')) {
+        result = result.replace(STRIPE_KEY_PATTERN, '[REDACTED]');
+    }
+    if (result.includes('npm_'))
+        result = result.replace(NPM_TOKEN_PATTERN, '[REDACTED]');
+    if (result.includes('AIza'))
+        result = result.replace(GOOGLE_API_KEY_PATTERN, '[REDACTED]');
+    if (result.includes('SK') || result.includes('AC')) {
+        result = result.replace(TWILIO_KEY_PATTERN, '[REDACTED]');
+    }
+    if (result.includes('SG.'))
+        result = result.replace(SENDGRID_KEY_PATTERN, '[REDACTED]');
+    if (result.includes('uthorization')) {
+        result = result.replace(AUTHORIZATION_HEADER_PATTERN, 'Authorization: [REDACTED]');
+    }
+    result = result
         .replace(SECRET_FIELD_PATTERN, (match) => {
         const sepIdx = match.search(/[:=]\s*/u);
         const sepEnd = match.slice(sepIdx).match(/^[:=]\s*/u)[0].length;
         return `${match.slice(0, sepIdx + sepEnd)}[REDACTED]`;
     })
-        .replace(K8S_RELATIVE_DURATION_PATTERN, '[AGO]')
-        .replace(EMAIL_PATTERN, '[EMAIL]')
+        .replace(K8S_RELATIVE_DURATION_PATTERN, '[AGO]');
+    if (result.includes('@'))
+        result = result.replace(EMAIL_PATTERN, '[EMAIL]');
+    result = result
         .replace(HEX_HASH_PATTERN, hexHashReplacement)
-        .replace(ALPHANUMERIC_HASH_PATTERN, alnumHashReplacement)
-        .replace(AWS_ACCESS_KEY_PATTERN, '[REDACTED]')
-        .replace(AWS_ARN_ACCOUNT_PATTERN, (match, accountId) => match.replace(accountId, '[ACCOUNT]'))
-        .replace(/[ \t]+$/u, '');
+        .replace(ALPHANUMERIC_HASH_PATTERN, alnumHashReplacement);
+    if (result.includes('AKIA') || result.includes('ABIA') || result.includes('ASIA')) {
+        result = result.replace(AWS_ACCESS_KEY_PATTERN, '[REDACTED]');
+    }
+    if (result.includes('arn:aws:')) {
+        result = result.replace(AWS_ARN_ACCOUNT_PATTERN, (match, accountId) => match.replace(accountId, '[ACCOUNT]'));
+    }
+    // High-entropy fallback for credentials no vendor pattern recognizes.
+    result = (0, entropy_secret_js_1.maskHighEntropyTokens)(result);
+    result = result.replace(/[ \t]+$/u, '');
     // HTTP status code grouping
     result = (0, format_detector_js_1.groupHttpStatusCodes)(result);
     return result;

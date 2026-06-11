@@ -3,7 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LogStripError = exports.saveTelemetry = exports.recordTelemetry = exports.loadTelemetry = exports.formatTelemetrySummary = exports.resolveConfigPath = exports.parseLogStripConfig = exports.LOG_SOURCE_SIGNATURES = exports.KNOWN_LOG_SOURCES = exports.shouldKeepLine = exports.scoreLineRelevance = exports.looksLikeDiagnosticLine = exports.isProgressBarLine = exports.isCiNoiseLine = exports.isInternalStackTraceLine = exports.isAccessLogNoiseLine = exports.estimateTokens = exports.maskPemBlock = exports.createPemBlockState = exports.sanitizeLine = exports.planBlockDedupe = exports.isMultilingualDiagnosticLine = exports.isCascadeNoiseLine = exports.resolveAdaptiveAfterWindow = exports.neutralErrorGap = exports.buildAdaptiveAfterBounds = exports.applyTokenBudget = exports.resolveAutoMultiline = exports.effectiveMultilineMode = exports.isContinuationLine = exports.detectLogSources = exports.stackWindowSignature = exports.normalizeStackFrameLineCol = exports.createRepeatSignature = exports.TFIDF_REPEAT_THRESHOLD = exports.TFIDF_PENALTY = exports.TFIDF_MAP_LIMIT = exports.SCORE_KEEP_THRESHOLD = exports.MAX_REPEAT_DELTA_VALUES = exports.INTERNAL_STACK_MARKER = exports.CONTEXT_WINDOW_BEFORE = exports.CONTEXT_WINDOW_AFTER = exports.parseAggressiveness = exports.voteFormat = exports.decideFormat = exports.createFormatVoter = exports.detectFormat = exports.passesSeverityFilter = exports.parseSeverityLevel = exports.inferSeverity = void 0;
+exports.scoreLineRelevance = exports.looksLikeDiagnosticLine = exports.isStackFrameLine = exports.isProgressBarLine = exports.isCiNoiseLine = exports.isInternalStackTraceLine = exports.isAccessLogNoiseLine = exports.estimateTokens = exports.maskPemBlock = exports.createPemBlockState = exports.shannonEntropy = exports.maskHighEntropyTokens = exports.ENTROPY_SECRET_THRESHOLD = exports.ENTROPY_MIN_TOKEN_LENGTH = exports.sanitizeLine = exports.planBlockDedupe = exports.isMultilingualDiagnosticLine = exports.isCascadeNoiseLine = exports.resolveAdaptiveAfterWindow = exports.neutralErrorGap = exports.buildAdaptiveAfterBounds = exports.applyTokenBudget = exports.resolveAutoMultiline = exports.effectiveMultilineMode = exports.isContinuationLine = exports.detectLogSources = exports.stackWindowSignature = exports.normalizeStackFrameLineCol = exports.createRepeatSignature = exports.TFIDF_REPEAT_THRESHOLD = exports.TFIDF_PENALTY = exports.TFIDF_MAP_LIMIT = exports.SCORE_KEEP_THRESHOLD = exports.RARITY_MIN_INPUT_LINES = exports.RARITY_BOOST = exports.MAX_REPEAT_DELTA_VALUES = exports.INTERNAL_STACK_MARKER = exports.DEFAULT_MAX_STACK_FRAMES = exports.CONTEXT_WINDOW_BEFORE = exports.CONTEXT_WINDOW_AFTER = exports.parseAggressiveness = exports.voteFormat = exports.observeFormatDrift = exports.decideFormat = exports.createFormatVoter = exports.FORMAT_DRIFT_THRESHOLD = exports.detectFormat = exports.passesSeverityFilter = exports.parseSeverityLevel = exports.inferSeverity = void 0;
+exports.LogStripError = exports.saveTelemetry = exports.recordTelemetry = exports.loadTelemetry = exports.formatTelemetrySummary = exports.resolveConfigPath = exports.parseLogStripConfig = exports.LOG_SOURCE_SIGNATURES = exports.KNOWN_LOG_SOURCES = exports.shouldKeepLine = void 0;
 exports.buildMergedConfig = buildMergedConfig;
 exports.processLogStream = processLogStream;
 exports.processLogFile = processLogFile;
@@ -50,16 +51,21 @@ Object.defineProperty(exports, "passesSeverityFilter", { enumerable: true, get: 
 var format_detector_js_2 = require("./formats/format-detector.js");
 Object.defineProperty(exports, "detectFormat", { enumerable: true, get: function () { return format_detector_js_2.detectFormat; } });
 var format_voter_js_2 = require("./formats/format-voter.js");
+Object.defineProperty(exports, "FORMAT_DRIFT_THRESHOLD", { enumerable: true, get: function () { return format_voter_js_2.FORMAT_DRIFT_THRESHOLD; } });
 Object.defineProperty(exports, "createFormatVoter", { enumerable: true, get: function () { return format_voter_js_2.createFormatVoter; } });
 Object.defineProperty(exports, "decideFormat", { enumerable: true, get: function () { return format_voter_js_2.decideFormat; } });
+Object.defineProperty(exports, "observeFormatDrift", { enumerable: true, get: function () { return format_voter_js_2.observeFormatDrift; } });
 Object.defineProperty(exports, "voteFormat", { enumerable: true, get: function () { return format_voter_js_2.voteFormat; } });
 var levels_js_2 = require("./aggressiveness/levels.js");
 Object.defineProperty(exports, "parseAggressiveness", { enumerable: true, get: function () { return levels_js_2.parseAggressiveness; } });
 var constants_js_2 = require("./constants.js");
 Object.defineProperty(exports, "CONTEXT_WINDOW_AFTER", { enumerable: true, get: function () { return constants_js_2.CONTEXT_WINDOW_AFTER; } });
 Object.defineProperty(exports, "CONTEXT_WINDOW_BEFORE", { enumerable: true, get: function () { return constants_js_2.CONTEXT_WINDOW_BEFORE; } });
+Object.defineProperty(exports, "DEFAULT_MAX_STACK_FRAMES", { enumerable: true, get: function () { return constants_js_2.DEFAULT_MAX_STACK_FRAMES; } });
 Object.defineProperty(exports, "INTERNAL_STACK_MARKER", { enumerable: true, get: function () { return constants_js_2.INTERNAL_STACK_MARKER; } });
 Object.defineProperty(exports, "MAX_REPEAT_DELTA_VALUES", { enumerable: true, get: function () { return constants_js_2.MAX_REPEAT_DELTA_VALUES; } });
+Object.defineProperty(exports, "RARITY_BOOST", { enumerable: true, get: function () { return constants_js_2.RARITY_BOOST; } });
+Object.defineProperty(exports, "RARITY_MIN_INPUT_LINES", { enumerable: true, get: function () { return constants_js_2.RARITY_MIN_INPUT_LINES; } });
 Object.defineProperty(exports, "SCORE_KEEP_THRESHOLD", { enumerable: true, get: function () { return constants_js_2.SCORE_KEEP_THRESHOLD; } });
 Object.defineProperty(exports, "TFIDF_MAP_LIMIT", { enumerable: true, get: function () { return constants_js_2.TFIDF_MAP_LIMIT; } });
 Object.defineProperty(exports, "TFIDF_PENALTY", { enumerable: true, get: function () { return constants_js_2.TFIDF_PENALTY; } });
@@ -90,6 +96,11 @@ var block_deduper_js_2 = require("./dedupe/block-deduper.js");
 Object.defineProperty(exports, "planBlockDedupe", { enumerable: true, get: function () { return block_deduper_js_2.planBlockDedupe; } });
 var sanitize_line_js_2 = require("./sanitize/sanitize-line.js");
 Object.defineProperty(exports, "sanitizeLine", { enumerable: true, get: function () { return sanitize_line_js_2.sanitizeLine; } });
+var entropy_secret_js_1 = require("./sanitize/entropy-secret.js");
+Object.defineProperty(exports, "ENTROPY_MIN_TOKEN_LENGTH", { enumerable: true, get: function () { return entropy_secret_js_1.ENTROPY_MIN_TOKEN_LENGTH; } });
+Object.defineProperty(exports, "ENTROPY_SECRET_THRESHOLD", { enumerable: true, get: function () { return entropy_secret_js_1.ENTROPY_SECRET_THRESHOLD; } });
+Object.defineProperty(exports, "maskHighEntropyTokens", { enumerable: true, get: function () { return entropy_secret_js_1.maskHighEntropyTokens; } });
+Object.defineProperty(exports, "shannonEntropy", { enumerable: true, get: function () { return entropy_secret_js_1.shannonEntropy; } });
 var pem_block_js_2 = require("./sanitize/pem-block.js");
 Object.defineProperty(exports, "createPemBlockState", { enumerable: true, get: function () { return pem_block_js_2.createPemBlockState; } });
 Object.defineProperty(exports, "maskPemBlock", { enumerable: true, get: function () { return pem_block_js_2.maskPemBlock; } });
@@ -99,6 +110,7 @@ Object.defineProperty(exports, "isAccessLogNoiseLine", { enumerable: true, get: 
 Object.defineProperty(exports, "isInternalStackTraceLine", { enumerable: true, get: function () { return relevance_score_js_2.isInternalStackTraceLine; } });
 Object.defineProperty(exports, "isCiNoiseLine", { enumerable: true, get: function () { return relevance_score_js_2.isCiNoiseLine; } });
 Object.defineProperty(exports, "isProgressBarLine", { enumerable: true, get: function () { return relevance_score_js_2.isProgressBarLine; } });
+Object.defineProperty(exports, "isStackFrameLine", { enumerable: true, get: function () { return relevance_score_js_2.isStackFrameLine; } });
 Object.defineProperty(exports, "looksLikeDiagnosticLine", { enumerable: true, get: function () { return relevance_score_js_2.looksLikeDiagnosticLine; } });
 Object.defineProperty(exports, "scoreLineRelevance", { enumerable: true, get: function () { return relevance_score_js_2.scoreLineRelevance; } });
 Object.defineProperty(exports, "shouldKeepLine", { enumerable: true, get: function () { return relevance_score_js_2.shouldKeepLine; } });
@@ -216,9 +228,20 @@ async function processLogStream(input, output, options = {}) {
     // Behavioral detection/compression boosters are ON by default in auto mode;
     // pass the matching option explicitly as false (CLI: --no-*) to disable.
     const collapseRepeatedStacks = options.collapseRepeatedStacks !== false;
+    // Template mining: near-identical lines differing only in a number after a
+    // generic word label fold into one [xN] group with a delta list.
+    const templateMining = options.templateMining !== false;
+    const baseRepeatSignature = (line) => (0, repeat_grouper_js_1.createRepeatSignature)(line, templateMining);
     const repeatSignature = collapseRepeatedStacks
-        ? (line) => (0, stack_fingerprint_js_1.stackWindowSignature)(line) ?? (0, repeat_grouper_js_1.createRepeatSignature)(line)
-        : repeat_grouper_js_1.createRepeatSignature;
+        ? (line) => (0, stack_fingerprint_js_1.stackWindowSignature)(line) ?? baseRepeatSignature(line)
+        : baseRepeatSignature;
+    // App-stack truncation: cap consecutive application stack frames per trace.
+    const maxStackFrames = options.maxStackFrames !== undefined
+        ? Math.floor(options.maxStackFrames)
+        : constants_js_1.DEFAULT_MAX_STACK_FRAMES;
+    const stackFramesLimited = maxStackFrames > 0;
+    let appStackRun = 0;
+    let truncatedAppFrames = 0;
     // Sliding dedup window: 1 = adjacent-only (default), >1 collapses
     // non-adjacent duplicates seen within the last N distinct lines.
     const dedupeWindowSize = Math.max(1, Math.floor(options.dedupeWindow ?? 1));
@@ -266,6 +289,8 @@ async function processLogStream(input, output, options = {}) {
     const rawLines = (0, node_readline_1.createInterface)({ input, crlfDelay: Infinity });
     const lines = readLogicalLines(rawLines, multilineMode, multilineCtx);
     const pendingGroups = [];
+    // Signature index over pendingGroups so wide --dedupe-window stays O(1).
+    const pendingBySignature = new Map();
     let hidingInternalStack = false;
     let detectedFormat;
     let outputLineCount = 0;
@@ -309,9 +334,14 @@ async function processLogStream(input, output, options = {}) {
         }
         await emitOutputLine(line, group.score);
     };
+    const shiftPendingGroup = () => {
+        const group = pendingGroups.shift();
+        pendingBySignature.delete(group.signature);
+        return group;
+    };
     const flushPendingGroups = async () => {
         while (pendingGroups.length > 0) {
-            await flushGroup(pendingGroups.shift());
+            await flushGroup(shiftPendingGroup());
         }
     };
     const emitCandidate = async (line, score = 0) => {
@@ -321,14 +351,16 @@ async function processLogStream(input, output, options = {}) {
             return;
         }
         const signature = repeatSignature(line);
-        const existing = pendingGroups.find((group) => group.signature === signature);
+        const existing = pendingBySignature.get(signature);
         if (existing !== undefined) {
-            (0, repeat_grouper_js_1.addRepeatGroupLine)(existing, line, score);
+            (0, repeat_grouper_js_1.addRepeatGroupLine)(existing, line, score, templateMining);
             return;
         }
-        pendingGroups.push((0, repeat_grouper_js_1.createRepeatGroup)(line, score, signature));
+        const group = (0, repeat_grouper_js_1.createRepeatGroup)(line, score, signature);
+        pendingGroups.push(group);
+        pendingBySignature.set(signature, group);
         if (pendingGroups.length > dedupeWindowSize) {
-            await flushGroup(pendingGroups.shift());
+            await flushGroup(shiftPendingGroup());
         }
     };
     // Flush buffered context lines (retroactive promotion near an error)
@@ -341,6 +373,16 @@ async function processLogStream(input, output, options = {}) {
             await emitCandidate(buffered);
         }
         contextBefore.length = 0;
+    };
+    // Emit the pending app-stack truncation marker (frames beyond
+    // maxStackFrames collapse into a single count line).
+    const flushStackTruncation = async () => {
+        if (truncatedAppFrames === 0) {
+            return;
+        }
+        const marker = `[... ${truncatedAppFrames} more application stack frames ...]`;
+        truncatedAppFrames = 0;
+        await emitCandidate(marker, constants_js_1.SCORE_KEEP_THRESHOLD);
     };
     // Open the context window for a kept error: flush the before-context, open
     // the after-context window (sized by error density in auto mode), and reset
@@ -396,6 +438,13 @@ async function processLogStream(input, output, options = {}) {
                     if (voted !== undefined)
                         detectedFormat = voted;
                 }
+            }
+            else {
+                // Mid-stream drift: a sustained run of differently-formatted lines
+                // (e.g. plaintext boot output then JSON) re-elects the format.
+                const drifted = (0, format_voter_js_1.observeFormatDrift)(formatVoter, line);
+                if (drifted !== undefined)
+                    detectedFormat = drifted;
             }
         }
         // Empty lines always dropped; don't disturb context state
@@ -485,6 +534,8 @@ async function processLogStream(input, output, options = {}) {
             ((0, relevance_score_js_1.isInternalStackTraceLine)(sanitized) || isCustomInternalStack)) {
             stats.hiddenInternalStackLines += physicalLineCount;
             if (!hidingInternalStack) {
+                appStackRun = 0;
+                await flushStackTruncation();
                 await flushContextBefore();
                 await emitCandidate(constants_js_1.INTERNAL_STACK_MARKER, constants_js_1.SCORE_KEEP_THRESHOLD);
                 hidingInternalStack = true;
@@ -544,7 +595,7 @@ async function processLogStream(input, output, options = {}) {
         // Skip regex-based scoring for JSON lines that were successfully parsed
         // (their level-based score is used instead).
         const effectiveAggressiveness = dynamicAggressiveness.effective;
-        let score = jsonParsedScore ?? (0, relevance_score_js_1.scoreLineRelevance)(sanitized, effectiveAggressiveness, seenCount);
+        let score = jsonParsedScore ?? (0, relevance_score_js_1.scoreLineRelevance)(sanitized, effectiveAggressiveness, seenCount, stats.inputLines);
         // Custom diagnostic patterns contribute +50 per match (same as built-in DIAGNOSTIC_PATTERN)
         for (const regex of customDiagnosticRegexes) {
             if (testRegex(regex, sanitized)) {
@@ -557,6 +608,30 @@ async function processLogStream(input, output, options = {}) {
         }
         score += (0, source_detector_js_1.scoreSourceDiagnosticBoost)(sanitized, detectedSourceState, stats.inputLines);
         if (score >= constants_js_1.SCORE_KEEP_THRESHOLD) {
+            // App-stack truncation: keep the first maxStackFrames consecutive
+            // frames of a trace, collapse the rest into a single count marker.
+            if (stackFramesLimited && (0, relevance_score_js_1.isStackFrameLine)(sanitized)) {
+                appStackRun += 1;
+                if (appStackRun > maxStackFrames) {
+                    truncatedAppFrames += 1;
+                    stats.droppedLines += physicalLineCount;
+                    recordDecision({
+                        line,
+                        sanitizedLine: sanitized,
+                        kept: false,
+                        dropped: true,
+                        hardKeep: false,
+                        repeated: seenCount > 1,
+                        reason: 'stack-truncated',
+                        score,
+                    });
+                    continue;
+                }
+            }
+            else {
+                appStackRun = 0;
+                await flushStackTruncation();
+            }
             // Hard keep: flush buffered context, emit, open after-context window
             await openContextWindow();
             await emitCandidate(sanitized, score);
@@ -651,6 +726,8 @@ async function processLogStream(input, output, options = {}) {
             });
         }
     }
+    // A trace truncated at end-of-stream still gets its count marker.
+    await flushStackTruncation();
     // Context lines left without a triggering error are discarded
     stats.droppedLines += contextBefore.length;
     contextBefore.length = 0;

@@ -32,11 +32,25 @@ const STANDALONE_REPEAT_LABELS = new Set([
     'thread',
     'worker',
 ]);
-function createRepeatSignature(line) {
+// Template mining inverts the allowlist: a standalone number after ANY word
+// label merges into a delta, except after labels whose numbers carry
+// diagnostic meaning (exit codes, statuses, line numbers, versions).
+const STANDALONE_VALUE_BLOCKLIST = new Set([
+    'code',
+    'errno',
+    'error',
+    'exit',
+    'line',
+    'signal',
+    'status',
+    'version',
+]);
+const TEMPLATE_LABEL_PATTERN = /^[A-Za-z][\w-]*:?$/u;
+function createRepeatSignature(line, template = false) {
     const tokens = tokenizeRepeatLine(line);
     return tokens
         .map((token, index) => {
-        const tokenValue = splitRepeatToken(token, tokens[index - 1]);
+        const tokenValue = splitRepeatToken(token, tokens[index - 1], template);
         return tokenValue === undefined
             ? token
             : `${tokenValue.prefix}[VALUE]`;
@@ -56,14 +70,14 @@ function createRepeatGroup(line, score = 0, signature) {
         score,
     };
 }
-function addRepeatGroupLine(group, line, score = 0) {
+function addRepeatGroupLine(group, line, score = 0, template = false) {
     const tokens = tokenizeRepeatLine(line);
     if (score > group.score) {
         group.score = score;
     }
     for (const [index, firstToken] of group.firstTokens.entries()) {
-        const firstValue = splitRepeatToken(firstToken, group.firstTokens[index - 1]);
-        const nextValue = splitRepeatToken(tokens[index], tokens[index - 1]);
+        const firstValue = splitRepeatToken(firstToken, group.firstTokens[index - 1], template);
+        const nextValue = splitRepeatToken(tokens[index], tokens[index - 1], template);
         if (firstValue === undefined ||
             nextValue === undefined ||
             firstValue.prefix !== nextValue.prefix ||
@@ -137,7 +151,7 @@ function formatDurationMs(ms) {
 function tokenizeRepeatLine(line) {
     return line.trim().split(/\s+/u);
 }
-function splitRepeatToken(token, previousToken) {
+function splitRepeatToken(token, previousToken, template = false) {
     const separator = token.indexOf('=');
     if (separator > 0 && separator < token.length - 1) {
         return {
@@ -146,12 +160,21 @@ function splitRepeatToken(token, previousToken) {
         };
     }
     if (previousToken !== undefined &&
-        STANDALONE_REPEAT_LABELS.has(previousToken.toLowerCase()) &&
-        STANDALONE_REPEAT_VALUE_PATTERN.test(token)) {
+        STANDALONE_REPEAT_VALUE_PATTERN.test(token) &&
+        (template
+            ? isTemplateMergeLabel(previousToken)
+            : STANDALONE_REPEAT_LABELS.has(previousToken.toLowerCase()))) {
         return {
             prefix: '',
             value: token,
         };
     }
     return undefined;
+}
+function isTemplateMergeLabel(previousToken) {
+    if (!TEMPLATE_LABEL_PATTERN.test(previousToken)) {
+        return false;
+    }
+    const label = previousToken.replace(/:$/u, '').toLowerCase();
+    return !STANDALONE_VALUE_BLOCKLIST.has(label);
 }
