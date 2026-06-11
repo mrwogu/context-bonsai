@@ -50,12 +50,28 @@ const STANDALONE_REPEAT_LABELS = new Set([
   'worker',
 ]);
 
-export function createRepeatSignature(line: string): string {
+// Template mining inverts the allowlist: a standalone number after ANY word
+// label merges into a delta, except after labels whose numbers carry
+// diagnostic meaning (exit codes, statuses, line numbers, versions).
+const STANDALONE_VALUE_BLOCKLIST = new Set([
+  'code',
+  'errno',
+  'error',
+  'exit',
+  'line',
+  'signal',
+  'status',
+  'version',
+]);
+
+const TEMPLATE_LABEL_PATTERN = /^[A-Za-z][\w-]*:?$/u;
+
+export function createRepeatSignature(line: string, template = false): string {
   const tokens = tokenizeRepeatLine(line);
 
   return tokens
     .map((token, index) => {
-      const tokenValue = splitRepeatToken(token, tokens[index - 1]);
+      const tokenValue = splitRepeatToken(token, tokens[index - 1], template);
       return tokenValue === undefined
         ? token
         : `${tokenValue.prefix}[VALUE]`;
@@ -85,6 +101,7 @@ export function addRepeatGroupLine(
   group: RepeatGroup,
   line: string,
   score = 0,
+  template = false,
 ): void {
   const tokens = tokenizeRepeatLine(line);
   if (score > group.score) {
@@ -95,8 +112,9 @@ export function addRepeatGroupLine(
     const firstValue = splitRepeatToken(
       firstToken,
       group.firstTokens[index - 1],
+      template,
     );
-    const nextValue = splitRepeatToken(tokens[index], tokens[index - 1]);
+    const nextValue = splitRepeatToken(tokens[index], tokens[index - 1], template);
 
     if (
       firstValue === undefined ||
@@ -189,6 +207,7 @@ function tokenizeRepeatLine(line: string): string[] {
 function splitRepeatToken(
   token: string,
   previousToken?: string,
+  template = false,
 ): RepeatTokenValue | undefined {
   const separator = token.indexOf('=');
 
@@ -201,8 +220,10 @@ function splitRepeatToken(
 
   if (
     previousToken !== undefined &&
-    STANDALONE_REPEAT_LABELS.has(previousToken.toLowerCase()) &&
-    STANDALONE_REPEAT_VALUE_PATTERN.test(token)
+    STANDALONE_REPEAT_VALUE_PATTERN.test(token) &&
+    (template
+      ? isTemplateMergeLabel(previousToken)
+      : STANDALONE_REPEAT_LABELS.has(previousToken.toLowerCase()))
   ) {
     return {
       prefix: '',
@@ -211,4 +232,12 @@ function splitRepeatToken(
   }
 
   return undefined;
+}
+
+function isTemplateMergeLabel(previousToken: string): boolean {
+  if (!TEMPLATE_LABEL_PATTERN.test(previousToken)) {
+    return false;
+  }
+  const label = previousToken.replace(/:$/u, '').toLowerCase();
+  return !STANDALONE_VALUE_BLOCKLIST.has(label);
 }
