@@ -16,7 +16,7 @@ const logstrip_parser_1 = require("../core/logstrip-parser");
 const telemetry_store_1 = require("../core/telemetry/telemetry-store");
 const hook_runner_1 = require("./hook-runner");
 const version_check_1 = require("./version-check");
-exports.CLI_VERSION = '1.10.0'; // x-release-please-version
+exports.CLI_VERSION = '1.11.0'; // x-release-please-version
 exports.HOOK_SUBCOMMAND = 'hook';
 exports.HELP_TEXT = `Usage: logstrip [INPUT] [options]
        logstrip hook
