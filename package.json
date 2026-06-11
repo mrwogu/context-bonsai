@@ -59,6 +59,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "bench": "node scripts/benchmark-fixtures.mjs",
     "build": "tsc -p tsconfig.build.json && node scripts/bundle-action.js && node scripts/post-build.js",
     "build:plugins": "node scripts/build-plugins.js",
     "docs:build": "mkdocs build --strict",
