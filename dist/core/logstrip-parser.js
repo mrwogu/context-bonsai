@@ -3,8 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scoreLineRelevance = exports.looksLikeDiagnosticLine = exports.isStackFrameLine = exports.isProgressBarLine = exports.isCiNoiseLine = exports.isInternalStackTraceLine = exports.isAccessLogNoiseLine = exports.estimateTokens = exports.maskPemBlock = exports.createPemBlockState = exports.shannonEntropy = exports.maskHighEntropyTokens = exports.ENTROPY_SECRET_THRESHOLD = exports.ENTROPY_MIN_TOKEN_LENGTH = exports.sanitizeLine = exports.planBlockDedupe = exports.isMultilingualDiagnosticLine = exports.isCascadeNoiseLine = exports.resolveAdaptiveAfterWindow = exports.neutralErrorGap = exports.buildAdaptiveAfterBounds = exports.applyTokenBudget = exports.resolveAutoMultiline = exports.effectiveMultilineMode = exports.isContinuationLine = exports.detectLogSources = exports.stackWindowSignature = exports.normalizeStackFrameLineCol = exports.createRepeatSignature = exports.TFIDF_REPEAT_THRESHOLD = exports.TFIDF_PENALTY = exports.TFIDF_MAP_LIMIT = exports.SCORE_KEEP_THRESHOLD = exports.RARITY_MIN_INPUT_LINES = exports.RARITY_BOOST = exports.MAX_REPEAT_DELTA_VALUES = exports.INTERNAL_STACK_MARKER = exports.DEFAULT_MAX_STACK_FRAMES = exports.CONTEXT_WINDOW_BEFORE = exports.CONTEXT_WINDOW_AFTER = exports.parseAggressiveness = exports.voteFormat = exports.observeFormatDrift = exports.decideFormat = exports.createFormatVoter = exports.FORMAT_DRIFT_THRESHOLD = exports.detectFormat = exports.passesSeverityFilter = exports.parseSeverityLevel = exports.inferSeverity = void 0;
-exports.LogStripError = exports.saveTelemetry = exports.recordTelemetry = exports.loadTelemetry = exports.formatTelemetrySummary = exports.resolveConfigPath = exports.parseLogStripConfig = exports.LOG_SOURCE_SIGNATURES = exports.KNOWN_LOG_SOURCES = exports.shouldKeepLine = void 0;
+exports.maskPemBlock = exports.createPemBlockState = exports.shannonEntropy = exports.maskHighEntropyTokens = exports.ENTROPY_SECRET_THRESHOLD = exports.ENTROPY_MIN_TOKEN_LENGTH = exports.sanitizeLine = exports.compressJsonReport = exports.claimJsonDocument = exports.JSON_REPORT_MIN_REFERENCE_LENGTH = exports.JSON_REPORT_MAX_VARIANT_VALUES = exports.JSON_REPORT_MAX_BYTES = exports.JSON_META_NOTE_MARKER = exports.JSON_META_MARKER = exports.JSON_GROUP_MARKER = exports.planBlockDedupe = exports.isMultilingualDiagnosticLine = exports.isCascadeNoiseLine = exports.resolveAdaptiveAfterWindow = exports.neutralErrorGap = exports.buildAdaptiveAfterBounds = exports.applyTokenBudget = exports.resolveAutoMultiline = exports.effectiveMultilineMode = exports.isContinuationLine = exports.detectLogSources = exports.stackWindowSignature = exports.normalizeStackFrameLineCol = exports.createRepeatSignature = exports.TFIDF_REPEAT_THRESHOLD = exports.TFIDF_PENALTY = exports.TFIDF_MAP_LIMIT = exports.SCORE_KEEP_THRESHOLD = exports.RARITY_MIN_INPUT_LINES = exports.RARITY_BOOST = exports.MAX_REPEAT_DELTA_VALUES = exports.INTERNAL_STACK_MARKER = exports.DEFAULT_MAX_STACK_FRAMES = exports.CONTEXT_WINDOW_BEFORE = exports.CONTEXT_WINDOW_AFTER = exports.parseAggressiveness = exports.voteFormat = exports.observeFormatDrift = exports.decideFormat = exports.createFormatVoter = exports.FORMAT_DRIFT_THRESHOLD = exports.detectFormat = exports.passesSeverityFilter = exports.parseSeverityLevel = exports.inferSeverity = void 0;
+exports.LogStripError = exports.saveTelemetry = exports.recordTelemetry = exports.loadTelemetry = exports.formatTelemetrySummary = exports.resolveConfigPath = exports.parseLogStripConfig = exports.LOG_SOURCE_SIGNATURES = exports.KNOWN_LOG_SOURCES = exports.shouldKeepLine = exports.scoreLineRelevance = exports.looksLikeDiagnosticLine = exports.isStackFrameLine = exports.isProgressBarLine = exports.isCiNoiseLine = exports.isInternalStackTraceLine = exports.isAccessLogNoiseLine = exports.estimateTokens = void 0;
 exports.buildMergedConfig = buildMergedConfig;
 exports.processLogStream = processLogStream;
 exports.processLogFile = processLogFile;
@@ -36,6 +36,7 @@ const count_min_sketch_js_1 = require("./dedupe/count-min-sketch.js");
 const format_detector_js_1 = require("./formats/format-detector.js");
 const format_voter_js_1 = require("./formats/format-voter.js");
 const json_line_extractor_js_1 = require("./formats/json-line-extractor.js");
+const json_report_js_1 = require("./formats/json-report.js");
 const stack_fingerprint_js_1 = require("./dedupe/stack-fingerprint.js");
 const sanitize_line_js_1 = require("./sanitize/sanitize-line.js");
 const pem_block_js_1 = require("./sanitize/pem-block.js");
@@ -94,6 +95,15 @@ var multilingual_keywords_js_2 = require("./scoring/multilingual-keywords.js");
 Object.defineProperty(exports, "isMultilingualDiagnosticLine", { enumerable: true, get: function () { return multilingual_keywords_js_2.isMultilingualDiagnosticLine; } });
 var block_deduper_js_2 = require("./dedupe/block-deduper.js");
 Object.defineProperty(exports, "planBlockDedupe", { enumerable: true, get: function () { return block_deduper_js_2.planBlockDedupe; } });
+var json_report_js_2 = require("./formats/json-report.js");
+Object.defineProperty(exports, "JSON_GROUP_MARKER", { enumerable: true, get: function () { return json_report_js_2.JSON_GROUP_MARKER; } });
+Object.defineProperty(exports, "JSON_META_MARKER", { enumerable: true, get: function () { return json_report_js_2.JSON_META_MARKER; } });
+Object.defineProperty(exports, "JSON_META_NOTE_MARKER", { enumerable: true, get: function () { return json_report_js_2.JSON_META_NOTE_MARKER; } });
+Object.defineProperty(exports, "JSON_REPORT_MAX_BYTES", { enumerable: true, get: function () { return json_report_js_2.JSON_REPORT_MAX_BYTES; } });
+Object.defineProperty(exports, "JSON_REPORT_MAX_VARIANT_VALUES", { enumerable: true, get: function () { return json_report_js_2.JSON_REPORT_MAX_VARIANT_VALUES; } });
+Object.defineProperty(exports, "JSON_REPORT_MIN_REFERENCE_LENGTH", { enumerable: true, get: function () { return json_report_js_2.JSON_REPORT_MIN_REFERENCE_LENGTH; } });
+Object.defineProperty(exports, "claimJsonDocument", { enumerable: true, get: function () { return json_report_js_2.claimJsonDocument; } });
+Object.defineProperty(exports, "compressJsonReport", { enumerable: true, get: function () { return json_report_js_2.compressJsonReport; } });
 var sanitize_line_js_2 = require("./sanitize/sanitize-line.js");
 Object.defineProperty(exports, "sanitizeLine", { enumerable: true, get: function () { return sanitize_line_js_2.sanitizeLine; } });
 var entropy_secret_js_1 = require("./sanitize/entropy-secret.js");
@@ -288,6 +298,18 @@ async function processLogStream(input, output, options = {}) {
         : undefined;
     const rawLines = (0, node_readline_1.createInterface)({ input, crlfDelay: Infinity });
     const lines = readLogicalLines(rawLines, multilineMode, multilineCtx);
+    // Structured JSON document (test report / scanner export): claim it before
+    // the line pipeline, which would drop structural lines and emit invalid
+    // JSON. Only the capped candidate document is ever buffered; everything
+    // else is replayed into the streaming loop unchanged.
+    let activeLines = lines;
+    if (options.jsonReport !== false) {
+        const claim = await (0, json_report_js_1.claimJsonDocument)(lines, Math.max(1, Math.floor(options.jsonReportMaxBytes ?? json_report_js_1.JSON_REPORT_MAX_BYTES)));
+        if (claim.doc !== undefined) {
+            return emitJsonReport(claim.doc, output, stats, detectedSourceState, tokenEstimator);
+        }
+        activeLines = claim.replay;
+    }
     const pendingGroups = [];
     // Signature index over pendingGroups so wide --dedupe-window stays O(1).
     const pendingBySignature = new Map();
@@ -406,7 +428,7 @@ async function processLogStream(input, output, options = {}) {
             reason,
         });
     };
-    for await (const rawLine of lines) {
+    for await (const rawLine of activeLines) {
         throwIfAborted(options.signal);
         let line = String(rawLine);
         const physicalLineCount = line.split('\n').length;
@@ -791,6 +813,45 @@ async function processLogStream(input, output, options = {}) {
         savingsPercent,
         detectedSources: (0, source_detector_js_1.rankDetectedSources)(detectedSourceState),
         detectedFormat,
+    };
+}
+async function emitJsonReport(doc, output, stats, detectedSourceState, tokenEstimator) {
+    let inputTokensFromEstimator = 0;
+    let outputTokensFromEstimator = 0;
+    for (const line of doc.text.split('\n')) {
+        stats.inputLines += 1;
+        stats.inputWords += countWords(line);
+        stats.inputBytes += Buffer.byteLength(`${line}\n`, 'utf8');
+        (0, source_detector_js_1.collectDetectedSourceHits)(line, detectedSourceState);
+        if (tokenEstimator !== undefined) {
+            inputTokensFromEstimator += estimateLineTokens(tokenEstimator, `${line}\n`);
+        }
+    }
+    const compression = (0, json_report_js_1.compressJsonReport)(doc.value);
+    for (const line of compression.text.split('\n')) {
+        if (tokenEstimator !== undefined) {
+            outputTokensFromEstimator += estimateLineTokens(tokenEstimator, `${line}\n`);
+        }
+        await writeOutputLine(output, line, stats);
+    }
+    stats.duplicateLines += compression.duplicateEntries;
+    stats.droppedLines = Math.max(0, stats.inputLines - stats.outputLines);
+    const inputTokens = tokenEstimator === undefined
+        ? (0, relevance_score_js_1.estimateTokens)(stats.inputWords)
+        : inputTokensFromEstimator;
+    const outputTokens = tokenEstimator === undefined
+        ? (0, relevance_score_js_1.estimateTokens)(stats.outputWords)
+        : outputTokensFromEstimator;
+    const savedTokens = Math.max(inputTokens - outputTokens, 0);
+    const savingsPercent = inputTokens === 0 ? 0 : Math.round((savedTokens / inputTokens) * 10000) / 100;
+    return {
+        stats,
+        inputTokens,
+        outputTokens,
+        savedTokens,
+        savingsPercent,
+        detectedSources: (0, source_detector_js_1.rankDetectedSources)(detectedSourceState),
+        detectedFormat: 'json',
     };
 }
 async function processLogFile(inputPath, outputPath, options = {}) {

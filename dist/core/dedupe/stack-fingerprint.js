@@ -36,8 +36,9 @@ function normalizeStackFrameLineCol(line) {
     result = result.replace(GO_FRAME_LINE_COL, ':[NN]$2');
     // JS: "file.ts:42:18)" → "file.ts:[NN]:[NN])"
     result = result.replace(JS_FRAME_LINE_COL, ':[NN]:[NN])');
-    // Java: "Thread.java:829)" → "Thread.java:[NN])"
-    result = result.replace(JAVA_FRAME_LINE, ':[NN])');
+    // Java: "Thread.java:829)" → "Thread.java:[NN])". The closing paren is a
+    // lookahead in JAVA_FRAME_LINE, so the replacement must not re-emit it.
+    result = result.replace(JAVA_FRAME_LINE, ':[NN]');
     return result;
 }
 // ── Whole-window stack fingerprinting (opt-in --collapse-stacks) ──────────

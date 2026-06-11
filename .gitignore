@@ -8,3 +8,4 @@ dist/**/*.d.ts
 
 *.tgz
 .code-review-graph
+test-review-data.json
