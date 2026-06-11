@@ -1,4 +1,6 @@
 import {
+  RARITY_BOOST,
+  RARITY_MIN_INPUT_LINES,
   SCORE_KEEP_THRESHOLD,
   TFIDF_PENALTY,
   TFIDF_REPEAT_THRESHOLD,
@@ -13,16 +15,30 @@ const APACHE_ROUTINE_NOTICE_PATTERN =
   /^(?:\[(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?\s+\d{4}\]|\[TIME\])\s+\[notice\]\s+(?:workerEnv\.init\(\) ok\b|jk2_init\(\) Found child \d+ in scoreboard slot \d+\b)/iu;
 const IMPORTANT_LOG_TAG_PATTERN = /\[(?:ERROR|WARN|FATAL|CRITICAL|FAIL)\]/iu;
 const EXPLICIT_LOG_TAG_PATTERN = /\[[A-Z]+\]/iu;
-const STACK_FRAME_PATTERN = /^\s*at\s+.*(?:\(|\s).+:\d+:\d+\)?$/;
-const JAVA_STACK_FRAME_PATTERN = /^\s*at\s+[\w$_.<>/]+\([^)]+:\d+\)$/;
+// Frame patterns accept either raw digits or the [NN] placeholder that
+// normalizeStackFrameLineCol substitutes, so frames stay recognizable
+// (and scorable) after line:column normalization.
+const STACK_FRAME_PATTERN =
+  /^\s*at\s+.*(?:\(|\s).+:(?:\d+|\[NN\]):(?:\d+|\[NN\])\)?$/;
+const JAVA_STACK_FRAME_PATTERN =
+  /^\s*at\s+[\w$_.<>/]+\([^)]+:(?:\d+|\[NN\])\)$/;
 const PYTHON_STACK_FRAME_PATTERN =
-  /^\s*File\s+"[^"]+",\s+line\s+\d+,\s+in\s+.+$/;
+  /^\s*File\s+"[^"]+",\s+line\s+(?:\d+|\[NN\]),\s+in\s+.+$/;
 const GO_STACK_FRAME_PATTERN =
   /^\s*(?:(?:[\w.-]+\/)+[\w./-]+|[\w.-]+\.\(\*?[\w.]+\)\.[\w.]+|[\w.-]+\.[A-Z]\w*)\(.*\)$/;
 const GO_FILE_FRAME_PATTERN =
-  /^\s*(?:\/[^\s]+|[A-Za-z]:[\\/][^\s]+):\d+(?:\s+\+\S+)?$/;
+  /^\s*(?:\/[^\s]+|[A-Za-z]:[\\/][^\s]+):(?:\d+|\[NN\])(?:\s+\+\S+)?$/;
 const GO_GOROUTINE_PATTERN = /^\s*goroutine\s+\d+\s+\[.+\]:$/iu;
 const PYTHON_TRACEBACK_PATTERN = /^Traceback \(most recent call last\):$/;
+const RUBY_STACK_FRAME_PATTERN = /^\s*from\s+\S+:\d+:in\s+[`'].+$/u;
+const RUST_PANIC_PATTERN = /^thread '[^']*' panicked at\b/u;
+const RUST_BACKTRACE_FRAME_PATTERN =
+  /^\s*\d+:\s+(?:0x[0-9a-f]+\s+-\s+)?\S*(?:::|[<>])\S*$/u;
+const RUST_FILE_FRAME_PATTERN = /^\s*at\s+\S+\.rs:\d+:\d+:?$/u;
+const CSHARP_STACK_FRAME_PATTERN =
+  /^\s*at\s+[\w.<>`+\[\],$]+\([^)]*\)(?:\s+in\s+\S+:line\s+\d+)?$/u;
+const PHP_STACK_FRAME_PATTERN =
+  /^\s*#\d+\s+(?:\{main\}|\S+\(\d+\):\s+\S+.*)$/u;
 const STACK_MORE_PATTERN = /^\s*\.\.\. \d+ more$/;
 const GITHUB_ACTIONS_ANNOTATION_PATTERN = /^::(?:error|warning|notice)\b/u;
 const GRADLE_FAILURE_PATTERN =
@@ -37,6 +53,9 @@ const AZURE_PIPELINE_PATTERN = /^##vso\[task\.(?:LogIssue|Complete)\b/u;
 const TEAMCITY_MARKER_PATTERN = /^##teamcity\[(?:buildProblem|compilationFinished|message)\b/u;
 const DIAGNOSTIC_PATTERN =
   /\b(?:Error|Exception|AssertionError|TypeError|ReferenceError|SyntaxError|RangeError|NullPointerException|Unhandled|failed|failure|fatal|panic|refused|timeout|timed\s+out|unreachable|unavailable|disconnected|killed|aborted|crashed|terminated|unauthorized)\b/iu;
+// Compound exception class names (PaymentGatewayException, FooTimeoutError…)
+// where the bare-word DIAGNOSTIC_PATTERN \b boundary cannot fire.
+const COMPOUND_EXCEPTION_PATTERN = /\b[A-Z]\w+(?:Exception|Error|Fault)\b/u;
 const JSON_SEVERITY_PATTERN =
   /"(?:level|severity)"\s*:\s*"(?:fatal|error|critical|warn|warning)"/iu;
 const NPM_ERROR_PATTERN = /\b(?:npm|pnpm)\s+ERR!/iu;
@@ -46,7 +65,7 @@ const SCANNER_FINDING_PATTERN =
 const CONTAINER_FAILURE_PATTERN =
   /\b(?:CrashLoopBackOff|ImagePullBackOff|ErrImagePull|OOMKilled|Back[- ]off restarting failed container|failed to pull image|(?:containerd|runc).*?(?:failed|error|panic|timeout|refused)|(?:failed|error|panic|timeout|refused).*?(?:containerd|runc)|rpc error: code = Unknown desc = failed to resolve reference)\b/iu;
 const INTERNAL_STACK_PATTERN =
-  /(?:node_modules[\\/]|node:internal|internal[\\/]modules|bootstrap_node|[\\/]usr[\\/]lib[\\/]|[\\/]usr[\\/]local[\\/]lib[\\/]|[\\/]usr[\\/]local[\\/]go[\\/]src[\\/]runtime[\\/]|site-packages[\\/]|dist-packages[\\/]|\.venv[\\/]|java\.base[\\/]|jdk\.internal|org\.springframework\.|[\\/]pkg[\\/]mod[\\/]|\.cargo[\\/]registry[\\/])/iu;
+  /(?:node_modules[\\/]|node:internal|internal[\\/]modules|bootstrap_node|[\\/]usr[\\/]lib[\\/]|[\\/]usr[\\/]local[\\/]lib[\\/]|[\\/]usr[\\/]local[\\/]go[\\/]src[\\/]runtime[\\/]|site-packages[\\/]|dist-packages[\\/]|\.venv[\\/]|java\.base[\\/]|jdk\.internal|org\.springframework\.|[\\/]pkg[\\/]mod[\\/]|\.cargo[\\/]registry[\\/]|[\\/]gems[\\/]|vendor[\\/]bundle[\\/]|[\\/]rustc[\\/]|\bat System\.)/iu;
 
 const LOW_EXTRA_TAG_PATTERN = /\[(?:NOTICE|STATUS)\]/iu;
 const AGGRESSIVE_WARN_PATTERN = /\[(?:WARN|WARNING)\]/iu;
@@ -79,17 +98,35 @@ export function shouldKeepLine(line: string): boolean {
   return false;
 }
 
-export function looksLikeDiagnosticLine(line: string): boolean {
+/**
+ * True for lines that are a single stack-trace frame (any supported
+ * language). Excludes trace headers (goroutine/Traceback/panic) on purpose:
+ * the parser's app-stack truncation counts only consecutive frames.
+ */
+export function isStackFrameLine(line: string): boolean {
   return (
     STACK_FRAME_PATTERN.test(line) ||
     JAVA_STACK_FRAME_PATTERN.test(line) ||
     PYTHON_STACK_FRAME_PATTERN.test(line) ||
     GO_STACK_FRAME_PATTERN.test(line) ||
     GO_FILE_FRAME_PATTERN.test(line) ||
+    RUBY_STACK_FRAME_PATTERN.test(line) ||
+    RUST_BACKTRACE_FRAME_PATTERN.test(line) ||
+    RUST_FILE_FRAME_PATTERN.test(line) ||
+    CSHARP_STACK_FRAME_PATTERN.test(line) ||
+    PHP_STACK_FRAME_PATTERN.test(line)
+  );
+}
+
+export function looksLikeDiagnosticLine(line: string): boolean {
+  return (
+    isStackFrameLine(line) ||
     GO_GOROUTINE_PATTERN.test(line) ||
     PYTHON_TRACEBACK_PATTERN.test(line) ||
+    RUST_PANIC_PATTERN.test(line) ||
     STACK_MORE_PATTERN.test(line) ||
     DIAGNOSTIC_PATTERN.test(line) ||
+    COMPOUND_EXCEPTION_PATTERN.test(line) ||
     JSON_SEVERITY_PATTERN.test(line) ||
     NPM_ERROR_PATTERN.test(line) ||
     YARN_ERROR_PATTERN.test(line) ||
@@ -133,6 +170,7 @@ export function scoreLineRelevance(
   line: string,
   aggressiveness: Aggressiveness,
   seenCount = 0,
+  inputLines = 0,
 ): number {
   if (line.trim().length === 0) return -Infinity;
 
@@ -148,7 +186,8 @@ export function scoreLineRelevance(
   if (
     aggressiveness === 'aggressive' &&
     AGGRESSIVE_WARN_PATTERN.test(line) &&
-    !AGGRESSIVE_WARNING_SIGNAL_PATTERN.test(line)
+    !AGGRESSIVE_WARNING_SIGNAL_PATTERN.test(line) &&
+    !COMPOUND_EXCEPTION_PATTERN.test(line)
   ) {
     score = -1;
   }
@@ -159,6 +198,17 @@ export function scoreLineRelevance(
 
   if (seenCount >= TFIDF_REPEAT_THRESHOLD) {
     score -= TFIDF_PENALTY * (seenCount - TFIDF_REPEAT_THRESHOLD + 1);
+  }
+
+  // IDF-side rarity boost: in a large stream, a diagnostic-looking line seen
+  // exactly once is more likely to be the interesting one. Only lines that
+  // already carry signal (score > 0) qualify, so noise is never promoted.
+  if (
+    score > 0 &&
+    seenCount === 1 &&
+    inputLines >= RARITY_MIN_INPUT_LINES
+  ) {
+    score += RARITY_BOOST;
   }
 
   return score;
