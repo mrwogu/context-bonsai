@@ -1,0 +1,64 @@
+[INFO] 2026-06-09T11:02:00.120Z ci runner starting polyglot test matrix build=4821
+[INFO] 2026-06-09T11:02:00.412Z restoring caches ruby=3.3.4 rust=1.78.0 dotnet=8.0.301 php=8.3.8
+[DEBUG] 2026-06-09T11:02:01.001Z cache hit key=gems-9f2c
+[INFO] 2026-06-09T11:02:02.300Z step 1/4 bundle exec rspec
+[DEBUG] 2026-06-09T11:02:02.911Z loading spec_helper
+[INFO] 2026-06-09T11:02:04.150Z 412 examples, 0 failures so far
+[ERROR] 2026-06-09T11:02:05.402Z rspec PaymentChargeError: insufficient funds for order ord-2214
+/srv/app/lib/payments/charger.rb:48:in 'charge!': insufficient funds (PaymentChargeError)
+	from /srv/app/lib/payments/charger.rb:31:in 'call'
+	from /srv/app/lib/orders/finalizer.rb:22:in 'finalize'
+	from /srv/app/spec/payments/charger_spec.rb:19:in 'block (3 levels) in <top (required)>'
+	from /usr/local/bundle/gems/rspec-core-3.13.0/lib/rspec/core/example.rb:263:in 'instance_exec'
+	from /usr/local/bundle/gems/rspec-core-3.13.0/lib/rspec/core/example.rb:511:in 'block in with_around_and_singleton_context_hooks'
+	from /usr/local/bundle/gems/rspec-core-3.13.0/lib/rspec/core/hooks.rb:486:in 'run'
+[INFO] 2026-06-09T11:02:06.100Z step 2/4 cargo test --workspace
+[DEBUG] 2026-06-09T11:02:06.220Z compiling settlement-engine v0.9.1
+thread 'settlement::tests::splits_fees' panicked at src/settlement/splitter.rs:88:13:
+attempt to subtract with overflow
+stack backtrace:
+   0: rust_begin_unwind
+             at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:645:5
+   1: core::panicking::panic_fmt
+             at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/panicking.rs:72:14
+   2: settlement_engine::settlement::splitter::split_fees
+             at src/settlement/splitter.rs:88:13
+   3: settlement_engine::settlement::tests::splits_fees
+             at src/settlement/splitter.rs:141:9
+[INFO] 2026-06-09T11:02:08.410Z step 3/4 dotnet test Checkout.sln
+[DEBUG] 2026-06-09T11:02:08.523Z discovering tests in Checkout.Tests.dll
+[ERROR] 2026-06-09T11:02:09.020Z xunit CheckoutValidationFault: shipping address missing postal code
+   at Acme.Checkout.Validation.AddressValidator.Validate(Address address) in /src/Checkout/Validation/AddressValidator.cs:line 57
+   at Acme.Checkout.CheckoutService.Submit(Order order) in /src/Checkout/CheckoutService.cs:line 132
+   at Checkout.Tests.CheckoutServiceTests.Submit_RequiresPostalCode() in /src/Checkout.Tests/CheckoutServiceTests.cs:line 41
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[INFO] 2026-06-09T11:02:11.250Z step 4/4 php vendor/bin/phpunit
+[DEBUG] 2026-06-09T11:02:11.388Z PHPUnit 11.2.5 by Sebastian Bergmann
+[ERROR] 2026-06-09T11:02:12.040Z PHP Fatal error: Uncaught RefundLedgerException: ledger entry already settled in /srv/app/src/Refunds/Ledger.php:74
+#0 /srv/app/src/Refunds/RefundService.php(39): Acme\Refunds\Ledger->append()
+#1 /srv/app/tests/Refunds/RefundServiceTest.php(28): Acme\Refunds\RefundService->refund()
+#2 /srv/app/vendor/bundle/phpunit/src/Framework/TestCase.php(1118): Acme\Tests\RefundServiceTest->testRefundSettledOrder()
+#3 {main}
+[INFO] 2026-06-09T11:02:13.300Z collecting node integration suite output
+[ERROR] 2026-06-09T11:02:14.560Z unhandledRejection deep middleware chain failure route=POST /api/refunds
+TypeError: Cannot read properties of null (reading 'ledgerId')
+    at resolveLedger (/srv/app/src/refunds/resolve-ledger.ts:12:18)
+    at applyRefund (/srv/app/src/refunds/apply-refund.ts:33:11)
+    at runRefundPipeline (/srv/app/src/refunds/pipeline.ts:54:9)
+    at stageValidate (/srv/app/src/refunds/stages/validate.ts:21:7)
+    at stageAuthorize (/srv/app/src/refunds/stages/authorize.ts:18:7)
+    at stageReserve (/srv/app/src/refunds/stages/reserve.ts:27:7)
+    at stageSettle (/srv/app/src/refunds/stages/settle.ts:31:7)
+    at stageNotify (/srv/app/src/refunds/stages/notify.ts:14:7)
+    at stageAudit (/srv/app/src/refunds/stages/audit.ts:19:7)
+    at stageArchive (/srv/app/src/refunds/stages/archive.ts:23:7)
+    at stageMetrics (/srv/app/src/refunds/stages/metrics.ts:11:7)
+    at stageReplay (/srv/app/src/refunds/stages/replay.ts:16:7)
+    at stageCompact (/srv/app/src/refunds/stages/compact.ts:13:7)
+    at stageFlush (/srv/app/src/refunds/stages/flush.ts:25:7)
+    at dispatchRefund (/srv/app/src/refunds/dispatch.ts:40:13)
+    at handleRequest (/srv/app/src/http/handle-request.ts:66:21)
+[FATAL] 2026-06-09T11:02:15.901Z polyglot matrix failed: 4 suites red
+[INFO] 2026-06-09T11:02:16.020Z uploading junit reports
+[DEBUG] 2026-06-09T11:02:16.110Z artifact upload complete

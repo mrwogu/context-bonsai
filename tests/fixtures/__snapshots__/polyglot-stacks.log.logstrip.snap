@@ -1,0 +1,41 @@
+[ERROR] [TIME] rspec PaymentChargeError: insufficient funds for order ord-2214
+/srv/app/lib/payments/charger.rb:48:in 'charge!': insufficient funds (PaymentChargeError)
+	from /srv/app/lib/payments/charger.rb:31:in 'call'
+	from /srv/app/lib/orders/finalizer.rb:22:in 'finalize'
+	from /srv/app/spec/payments/charger_spec.rb:19:in 'block (3 levels) in <top (required)>'
+[... hidden internal library frames ...]
+thread 'settlement::tests::splits_fees' panicked at src/settlement/splitter.rs:88:13:
+attempt to subtract with overflow
+stack backtrace:
+   0: rust_begin_unwind
+[... hidden internal library frames ...]
+   1: core::panicking::panic_fmt
+[... hidden internal library frames ...]
+   2: settlement_engine::settlement::splitter::split_fees
+             at src/settlement/splitter.rs:88:13
+   3: settlement_engine::settlement::tests::splits_fees
+             at src/settlement/splitter.rs:141:9
+[ERROR] [TIME] xunit CheckoutValidationFault: shipping address missing postal code
+   at Acme.Checkout.Validation.AddressValidator.Validate(Address address) in /src/Checkout/Validation/AddressValidator.cs:line 57
+   at Acme.Checkout.CheckoutService.Submit(Order order) in /src/Checkout/CheckoutService.cs:line 132
+   at Checkout.Tests.CheckoutServiceTests.Submit_RequiresPostalCode() in /src/Checkout.Tests/CheckoutServiceTests.cs:line 41
+[... hidden internal library frames ...]
+[ERROR] [TIME] PHP Fatal error: Uncaught RefundLedgerException: ledger entry already settled in /srv/app/src/Refunds/Ledger.php:74
+#0 /srv/app/src/Refunds/RefundService.php(39): Acme\Refunds\Ledger->append()
+#1 /srv/app/tests/Refunds/RefundServiceTest.php(28): Acme\Refunds\RefundService->refund()
+[... hidden internal library frames ...]
+#3 {main}
+[ERROR] [TIME] unhandledRejection deep middleware chain failure route=POST /api/refunds
+TypeError: Cannot read properties of null (reading 'ledgerId')
+    at resolveLedger (/srv/app/src/refunds/resolve-ledger.ts:[NN]:[NN])
+    at applyRefund (/srv/app/src/refunds/apply-refund.ts:[NN]:[NN])
+    at runRefundPipeline (/srv/app/src/refunds/pipeline.ts:[NN]:[NN])
+    at stageValidate (/srv/app/src/refunds/stages/validate.ts:[NN]:[NN])
+    at stageAuthorize (/srv/app/src/refunds/stages/authorize.ts:[NN]:[NN])
+    at stageReserve (/srv/app/src/refunds/stages/reserve.ts:[NN]:[NN])
+    at stageSettle (/srv/app/src/refunds/stages/settle.ts:[NN]:[NN])
+    at stageNotify (/srv/app/src/refunds/stages/notify.ts:[NN]:[NN])
+    at stageAudit (/srv/app/src/refunds/stages/audit.ts:[NN]:[NN])
+    at stageArchive (/srv/app/src/refunds/stages/archive.ts:[NN]:[NN])
+[... 6 more application stack frames ...]
+[FATAL] [TIME] polyglot matrix failed: 4 suites red
