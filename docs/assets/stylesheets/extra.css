@@ -163,6 +163,38 @@ body,
   animation: logstrip-pulse 1.8s ease-in-out infinite;
 }
 
+.md-typeset .logstrip-hero__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.85rem;
+  padding: 0.22rem 0.65rem;
+  border: 1px solid rgba(244, 231, 161, 0.35);
+  border-radius: 999px;
+  background: rgba(244, 231, 161, 0.08);
+  color: #f4e7a1;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  text-decoration: none;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.md-typeset .logstrip-hero__badge:hover,
+.md-typeset .logstrip-hero__badge:focus {
+  border-color: rgba(244, 231, 161, 0.7);
+  background: rgba(244, 231, 161, 0.16);
+  color: #f4e7a1;
+}
+
+[data-md-color-scheme='default'] .md-typeset .logstrip-hero__badge {
+  border-color: rgba(146, 110, 5, 0.4);
+  background: rgba(146, 110, 5, 0.08);
+  color: #7a5c03;
+}
+
 .md-typeset .logstrip-hero h1 {
   max-width: 16ch;
   margin: 0;
@@ -320,6 +352,49 @@ body,
   background: rgba(0, 0, 0, 0.28);
   color: var(--logstrip-text);
   white-space: pre-wrap;
+}
+
+/* ----- Scenario tabs ----- */
+
+.logstrip-demo__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid var(--logstrip-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.logstrip-demo__tab {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--logstrip-muted);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.6rem;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.logstrip-demo__tab:hover {
+  color: var(--logstrip-text);
+  border-color: var(--logstrip-border-strong);
+}
+
+.logstrip-demo__tab.is-active {
+  color: var(--logstrip-green);
+  border-color: rgba(164, 255, 175, 0.4);
+  background: rgba(164, 255, 175, 0.08);
+}
+
+.logstrip-demo__tab:focus-visible {
+  outline: 2px solid var(--logstrip-green);
+  outline-offset: 2px;
 }
 
 /* ----- Toggle switch ----- */
@@ -1004,6 +1079,8 @@ html {
 [data-logstrip-reveal][data-delay='2'] { --logstrip-delay: 0.16s; }
 [data-logstrip-reveal][data-delay='3'] { --logstrip-delay: 0.24s; }
 [data-logstrip-reveal][data-delay='4'] { --logstrip-delay: 0.32s; }
+[data-logstrip-reveal][data-delay='5'] { --logstrip-delay: 0.4s; }
+[data-logstrip-reveal][data-delay='6'] { --logstrip-delay: 0.48s; }
 
 @supports (animation-timeline: view()) {
   [data-logstrip-reveal] {

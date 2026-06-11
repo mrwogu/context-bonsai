@@ -8,10 +8,12 @@ description: Free, zero-dependency CLI that compresses noisy logs into high-sign
 <div class="logstrip-hero__copy" markdown="1">
 <p class="logstrip-kicker">cli compression for agentic pipelines</p>
 
+<a class="logstrip-hero__badge" href="https://github.com/mrwogu/logstrip/blob/main/CHANGELOG.md">new in v1.12 · semantic json report compression →</a>
+
 # smaller logs. cleaner agents.
 <span class="logstrip-sr-only">LogStrip - log compression CLI for AI agents.</span>
 
-<p class="logstrip-lede">A zero-dependency CLI that turns chaotic server logs, build pipelines, vulnerability scanners, and container workloads into compact, high-signal context that AI agents can actually reason about.</p>
+<p class="logstrip-lede">A zero-dependency CLI that turns chaotic server logs, build pipelines, scanner reports, and container workloads into compact, high-signal context that AI agents can actually reason about - secrets masked, JSON kept valid, output trimmed to your token budget.</p>
 
 <div class="logstrip-actions">
   <a class="logstrip-button" href="getting-started/">install the cli</a>
@@ -131,6 +133,22 @@ Statement, branch, function, and line coverage are pinned to 100% across the par
 
 `cat raw.log | logstrip > clean.log`. Stats on stderr, JSON on stdout (with `--output`), exit codes 0/1/2.
 </div>
+
+<div class="logstrip-card" data-logstrip-reveal data-delay="5" markdown="1">
+<span class="logstrip-metric">--max-tokens</span>
+
+### fits any context window
+
+Budget mode keeps the highest-scoring lines under a hard token cap, so output always fits the context you have left.
+</div>
+
+<div class="logstrip-card" data-logstrip-reveal data-delay="6" markdown="1">
+<span class="logstrip-metric">[REDACTED]</span>
+
+### safe to paste
+
+Stripe, AWS, GitHub, JWT and PEM credentials are masked - with a Shannon-entropy fallback for tokens no vendor pattern knows.
+</div>
 </div>
 
 <section class="logstrip-engine" data-logstrip-reveal markdown="1">
@@ -147,7 +165,10 @@ LogStrip scores each sanitized line, keeps nearby context, dampens repeated spam
 <div class="logstrip-engine__step" markdown="1"><span>04</span>**Summarize deltas** by listing only differing `key=value` values when repeated events share the same shape, including enumerated instance counters like `worker [1 | 2 | 3]`.</div>
 <div class="logstrip-engine__step" markdown="1"><span>05</span>**Prune cascades** by dropping downstream restatements (`aborting due to previous errors`, `skipped because the upstream job failed`) so the originating failure stands out.</div>
 <div class="logstrip-engine__step" markdown="1"><span>06</span>**Collapse internals** by replacing low-value framework/runtime stack frames with one marker while preserving app frames.</div>
-<div class="logstrip-engine__step" markdown="1"><span>07</span>**Detect sources and format** across 700+ ecosystems with a single-pass Aho-Corasick automaton, then majority-vote the dominant format over the first 50 lines so JSON reports tell agents exactly what they are reading.</div>
+<div class="logstrip-engine__step" markdown="1"><span>07</span>**Detect sources and format** across 700+ ecosystems with a single-pass Aho-Corasick automaton, majority-vote the dominant format over the first 50 lines, and re-elect it when the stream drifts mid-log so agents always know what they are reading.</div>
+<div class="logstrip-engine__step" markdown="1"><span>08</span>**Mask secrets** with vendor patterns (Stripe, AWS, GitHub, npm, JWT, PEM blocks) plus a Shannon-entropy fallback, so unknown credentials still leave as `[REDACTED]` before the log ever reaches an LLM.</div>
+<div class="logstrip-engine__step" markdown="1"><span>09</span>**Compress JSON reports** by detecting structured documents (test reports, scanner exports) and re-shaping them semantically - repeated entries grouped, duplicate fields referenced, empty fields pruned - while the output stays valid JSON.</div>
+<div class="logstrip-engine__step" markdown="1"><span>10</span>**Fit the token budget** with `--max-tokens N`: output is trimmed to the highest-scoring lines, so even a multi-gigabyte incident log fits whatever context window is left.</div>
 </div>
 </section>
 
@@ -192,7 +213,7 @@ LogStrip produces deterministic, AI-ready logs that are cheaper to analyze.
 </div>
 
 <div class="logstrip-agents-strip" data-logstrip-reveal>
-  <span class="logstrip-agents-strip__label">plugins for every listed agent</span>
+  <span class="logstrip-agents-strip__label">plugins that auto-intercept raw log pastes in every listed agent</span>
   <div class="logstrip-agents-strip__logos">
     <a class="logstrip-agent-logo" title="Claude Code" href="guides/plugins/#claude-code"><img src="assets/images/logo-claude-code.svg" alt="Claude Code"></a>
     <a class="logstrip-agent-logo" title="Droid" href="guides/plugins/#factory-droid"><img src="assets/images/logo-droid.png" alt="Droid"></a>
