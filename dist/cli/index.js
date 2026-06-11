@@ -64,6 +64,13 @@ Options:
       --no-adaptive-context Disable auto-mode adaptive context windows that
                            widen around isolated errors and tighten around
                            clustered ones.
+      --max-stack-frames <N> Keep at most N consecutive application stack
+                           frames per trace; the rest collapse into a
+                           [... K more application stack frames ...] marker.
+                           0 keeps every frame. Default: 10.
+      --no-template-mining Disable folding of near-identical lines that
+                           differ only in a number after a generic word
+                           label (e.g. "Retrying job 17" / "Retrying job 18").
       --preserve-id-suffix <N> Keep the last N chars of redacted UUIDs/hashes
                            (e.g. [ID:74000]) instead of fully masking. 0-16,
                            0 masks fully. Default: 0.
@@ -132,6 +139,8 @@ function parseCliOptions(argv) {
                 'no-root-cause': { type: 'boolean', default: false },
                 'no-multilingual': { type: 'boolean', default: false },
                 'no-adaptive-context': { type: 'boolean', default: false },
+                'max-stack-frames': { type: 'string' },
+                'no-template-mining': { type: 'boolean', default: false },
                 'max-line-length': { type: 'string' },
                 timeout: { type: 'string' },
                 progress: { type: 'boolean', default: false },
@@ -243,6 +252,13 @@ function parseCliOptions(argv) {
             throw new CliError(`Invalid --collapse-blocks: ${parsed.values['collapse-blocks']}. Must be an integer >= 2.`, 2);
         }
     }
+    let maxStackFrames;
+    if (typeof parsed.values['max-stack-frames'] === 'string') {
+        if (!/^\d+$/u.test(parsed.values['max-stack-frames'])) {
+            throw new CliError(`Invalid --max-stack-frames: ${parsed.values['max-stack-frames']}. Must be an integer >= 0 (0 keeps every frame).`, 2);
+        }
+        maxStackFrames = Number(parsed.values['max-stack-frames']);
+    }
     let maxLineLength;
     if (typeof parsed.values['max-line-length'] === 'string') {
         if (!/^\d+$/u.test(parsed.values['max-line-length']))
@@ -295,6 +311,8 @@ function parseCliOptions(argv) {
         multilingual: parsed.values['no-multilingual'] !== true,
         collapseBlocks,
         adaptiveContext: parsed.values['no-adaptive-context'] !== true,
+        maxStackFrames,
+        templateMining: parsed.values['no-template-mining'] !== true,
         telemetry: parsed.values.telemetry === true,
         help: parsed.values.help === true,
         version: parsed.values.version === true,
@@ -444,6 +462,8 @@ async function runCli(argv, io) {
             multilingual: options.multilingual,
             collapseBlocks: options.collapseBlocks,
             adaptiveContext: options.adaptiveContext ? undefined : false,
+            maxStackFrames: options.maxStackFrames,
+            templateMining: options.templateMining,
         };
         result = await (0, logstrip_parser_1.processLogStreamWithTimeout)(input, output, logStripOptions, options.timeout);
     }
