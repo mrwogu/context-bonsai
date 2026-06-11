@@ -67,6 +67,12 @@ import {
 } from './formats/format-voter.js';
 import { scoreJsonLine } from './formats/json-line-extractor.js';
 import {
+  JSON_REPORT_MAX_BYTES,
+  claimJsonDocument,
+  compressJsonReport,
+  type ClaimedJsonDocument,
+} from './formats/json-report.js';
+import {
   normalizeStackFrameLineCol,
   stackWindowSignature,
 } from './dedupe/stack-fingerprint.js';
@@ -161,6 +167,19 @@ export {
   type BlockDedupePlan,
   planBlockDedupe,
 } from './dedupe/block-deduper.js';
+export {
+  JSON_GROUP_MARKER,
+  JSON_META_MARKER,
+  JSON_META_NOTE_MARKER,
+  JSON_REPORT_MAX_BYTES,
+  JSON_REPORT_MAX_VARIANT_VALUES,
+  JSON_REPORT_MIN_REFERENCE_LENGTH,
+  type ClaimedJsonDocument,
+  type JsonDocumentClaim,
+  type JsonReportCompression,
+  claimJsonDocument,
+  compressJsonReport,
+} from './formats/json-report.js';
 export { sanitizeLine } from './sanitize/sanitize-line.js';
 export {
   ENTROPY_MIN_TOKEN_LENGTH,
@@ -439,6 +458,29 @@ export async function processLogStream(
 
   const rawLines = createInterface({ input, crlfDelay: Infinity });
   const lines = readLogicalLines(rawLines, multilineMode, multilineCtx);
+
+  // Structured JSON document (test report / scanner export): claim it before
+  // the line pipeline, which would drop structural lines and emit invalid
+  // JSON. Only the capped candidate document is ever buffered; everything
+  // else is replayed into the streaming loop unchanged.
+  let activeLines: AsyncIterable<string> = lines;
+  if (options.jsonReport !== false) {
+    const claim = await claimJsonDocument(
+      lines,
+      Math.max(1, Math.floor(options.jsonReportMaxBytes ?? JSON_REPORT_MAX_BYTES)),
+    );
+    if (claim.doc !== undefined) {
+      return emitJsonReport(
+        claim.doc,
+        output,
+        stats,
+        detectedSourceState,
+        tokenEstimator,
+      );
+    }
+    activeLines = claim.replay;
+  }
+
   const pendingGroups: RepeatGroup[] = [];
   // Signature index over pendingGroups so wide --dedupe-window stays O(1).
   const pendingBySignature = new Map<string, RepeatGroup>();
@@ -580,7 +622,7 @@ export async function processLogStream(
     });
   };
 
-  for await (const rawLine of lines) {
+  for await (const rawLine of activeLines) {
     throwIfAborted(options.signal);
     let line = String(rawLine);
     const physicalLineCount = line.split('\n').length;
@@ -1014,6 +1056,60 @@ export async function processLogStream(
     savingsPercent,
     detectedSources: rankDetectedSources(detectedSourceState),
     detectedFormat,
+  };
+}
+
+async function emitJsonReport(
+  doc: ClaimedJsonDocument,
+  output: Writable,
+  stats: LogStripStats,
+  detectedSourceState: ReturnType<typeof createSourceDetectionState>,
+  tokenEstimator?: (line: string) => number,
+): Promise<LogStripResult> {
+  let inputTokensFromEstimator = 0;
+  let outputTokensFromEstimator = 0;
+
+  for (const line of doc.text.split('\n')) {
+    stats.inputLines += 1;
+    stats.inputWords += countWords(line);
+    stats.inputBytes += Buffer.byteLength(`${line}\n`, 'utf8');
+    collectDetectedSourceHits(line, detectedSourceState);
+    if (tokenEstimator !== undefined) {
+      inputTokensFromEstimator += estimateLineTokens(tokenEstimator, `${line}\n`);
+    }
+  }
+
+  const compression = compressJsonReport(doc.value);
+  for (const line of compression.text.split('\n')) {
+    if (tokenEstimator !== undefined) {
+      outputTokensFromEstimator += estimateLineTokens(tokenEstimator, `${line}\n`);
+    }
+    await writeOutputLine(output, line, stats);
+  }
+
+  stats.duplicateLines += compression.duplicateEntries;
+  stats.droppedLines = Math.max(0, stats.inputLines - stats.outputLines);
+
+  const inputTokens =
+    tokenEstimator === undefined
+      ? estimateTokens(stats.inputWords)
+      : inputTokensFromEstimator;
+  const outputTokens =
+    tokenEstimator === undefined
+      ? estimateTokens(stats.outputWords)
+      : outputTokensFromEstimator;
+  const savedTokens = Math.max(inputTokens - outputTokens, 0);
+  const savingsPercent =
+    inputTokens === 0 ? 0 : Math.round((savedTokens / inputTokens) * 10000) / 100;
+
+  return {
+    stats,
+    inputTokens,
+    outputTokens,
+    savedTokens,
+    savingsPercent,
+    detectedSources: rankDetectedSources(detectedSourceState),
+    detectedFormat: 'json',
   };
 }
 

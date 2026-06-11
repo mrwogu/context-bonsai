@@ -740,6 +740,26 @@ const cases: readonly SmokeCase[] = [
     mustDetectSources: [],
   },
   {
+    fixture: 'json-test-report.log',
+    minSavingsPercent: 45,
+    expectDeduplication: false,
+    expectInternalStackHidden: false,
+    mustContain: [
+      '"[logstrip:group]"',
+      '"count": 3',
+      '"assertionMessage": "[logstrip:= message]"',
+      'qa.backend.rest.scenarios.b2b.profile.customers.customerId.PatchCustomerTest.errorPatchInvalidDocument',
+      '"failed": 10',
+      'PartnerCiHelper.java:[NN]',
+    ],
+    mustNotContain: [
+      '"sourceFile"',
+      '"failedTests"',
+      'AssertionUtils.java:38',
+    ],
+    mustDetectSources: [],
+  },
+  {
     fixture: 'pino-bunyan-numeric.log',
     minSavingsPercent: 40,
     expectDeduplication: true,

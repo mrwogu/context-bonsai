@@ -89,6 +89,18 @@ export interface LogStripOptions {
    * marker. Default: 10. Set 0 to keep every frame.
    */
   maxStackFrames?: number;
+  /**
+   * Auto-detect a structured JSON document (test report, scanner export) at
+   * the head of the stream and compress it semantically instead of running
+   * the line pipeline, which would drop structural lines and emit invalid
+   * JSON. Default: on; set false to force line-oriented processing.
+   */
+  jsonReport?: boolean;
+  /**
+   * Buffering cap for JSON document detection. A candidate document larger
+   * than this falls back to the streaming line pipeline. Default: 8 MiB.
+   */
+  jsonReportMaxBytes?: number;
 }
 
 export interface LogStripStats {
