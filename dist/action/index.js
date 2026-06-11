@@ -21778,7 +21778,7 @@ function lowercaseKeys(object) {
     return newObj;
   }, {});
 }
-function isPlainObject(value) {
+function isPlainObject2(value) {
   if (typeof value !== "object" || value === null) return false;
   if (Object.prototype.toString.call(value) !== "[object Object]") return false;
   const proto = Object.getPrototypeOf(value);
@@ -21789,7 +21789,7 @@ function isPlainObject(value) {
 function mergeDeep(defaults2, options) {
   const result = Object.assign({}, defaults2);
   Object.keys(options).forEach((key) => {
-    if (isPlainObject(options[key])) {
+    if (isPlainObject2(options[key])) {
       if (!(key in defaults2)) Object.assign(result, { [key]: options[key] });
       else result[key] = mergeDeep(defaults2[key], options[key]);
     } else {
@@ -22371,7 +22371,7 @@ var init_dist_src = __esm({
 });
 
 // node_modules/@octokit/request/dist-bundle/index.js
-function isPlainObject2(value) {
+function isPlainObject3(value) {
   if (typeof value !== "object" || value === null) return false;
   if (Object.prototype.toString.call(value) !== "[object Object]") return false;
   const proto = Object.getPrototypeOf(value);
@@ -22388,7 +22388,7 @@ async function fetchWrapper(requestOptions) {
   }
   const log = requestOptions.request?.log || console;
   const parseSuccessResponseBody = requestOptions.request?.parseSuccessResponseBody !== false;
-  const body = isPlainObject2(requestOptions.body) || Array.isArray(requestOptions.body) ? JSONStringify(requestOptions.body) : requestOptions.body;
+  const body = isPlainObject3(requestOptions.body) || Array.isArray(requestOptions.body) ? JSONStringify(requestOptions.body) : requestOptions.body;
   const requestHeaders = Object.fromEntries(
     Object.entries(requestOptions.headers).map(([name, value]) => [
       name,
@@ -27611,7 +27611,7 @@ function normalizeStackFrameLineCol(line) {
   result = result.replace(PY_FRAME_LINE, "$1[NN]$2");
   result = result.replace(GO_FRAME_LINE_COL, ":[NN]$2");
   result = result.replace(JS_FRAME_LINE_COL, ":[NN]:[NN])");
-  result = result.replace(JAVA_FRAME_LINE, ":[NN])");
+  result = result.replace(JAVA_FRAME_LINE, ":[NN]");
   return result;
 }
 var STACK_WINDOW_INDICATOR = /(?:^|\n)\s*(?:at\s+\S|File\s+"[^"]+",\s+line\s+\d+|goroutine\s+\d+\s+\[|Traceback \(most recent call last\):)/u;
@@ -27684,7 +27684,7 @@ var JWT_TOKEN_PATTERN = /\beyJ[A-Za-z0-9_-]{16,2000}\.[A-Za-z0-9_-]{16,2000}\.[A
 var CONNECTION_STRING_PATTERN = /\b(?:postgres|mysql|mongodb|redis|postgresql|sqlserver|jdbc):\/\/[^:@\s]+:([^@\s]+)@/giu;
 var SLACK_TOKEN_PATTERN = /\bxox[abprs]-\d{10,12}-\d{10,12}-[A-Za-z0-9]{24,}\b/gu;
 var AUTHORIZATION_HEADER_PATTERN = /\bAuthorization\s*:\s*\S+(?:\s+\S+)*/giu;
-var SECRET_FIELD_PATTERN = /\b(?:password|secret|token|api[_-]?key|api[_-]?secret|private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|bearer)\s*[:=]\s*\S+/giu;
+var SECRET_FIELD_PATTERN = /\b(?:password|secret|token|api[_-]?key|api[_-]?secret|private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|bearer)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s"',;]+)/giu;
 var STRIPE_KEY_PATTERN = /\b(?:sk|pk|rk)_(?:live|test)_[0-9A-Za-z]{24,99}\b/gu;
 var NPM_TOKEN_PATTERN = /\bnpm_[A-Za-z0-9]{36,80}\b/gu;
 var GOOGLE_API_KEY_PATTERN = /\bAIza[0-9A-Za-z_-]{30,40}\b/gu;
@@ -27759,6 +27759,236 @@ function sanitizeLine(line, preserveIdSuffix = 0) {
   result = result.replace(/[ \t]+$/u, "");
   result = groupHttpStatusCodes(result);
   return result;
+}
+
+// src/core/formats/json-report.ts
+var JSON_REPORT_MAX_BYTES = 8 * 1024 * 1024;
+var JSON_REPORT_MIN_REFERENCE_LENGTH = 24;
+var JSON_REPORT_MAX_VARIANT_VALUES = 50;
+var JSON_GROUP_MARKER = "[logstrip:group]";
+var JSON_META_MARKER = "[logstrip:meta]";
+var JSON_META_NOTE_MARKER = `"[logstrip:= f]" repeats the text of sibling field f; empty fields pruned; "${JSON_GROUP_MARKER}" collapses entries identical except for the listed variant fields`;
+async function claimJsonDocument(lines, maxBytes) {
+  const iterator2 = lines[Symbol.asyncIterator]();
+  const buffered = [];
+  const replay = () => replayLines(buffered, iterator2);
+  let first;
+  while (first === void 0) {
+    const next = await iterator2.next();
+    if (next.done === true) {
+      return { replay: replay() };
+    }
+    buffered.push(next.value);
+    if (next.value.trim().length > 0) {
+      first = next.value;
+    }
+  }
+  const trimmed = first.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return { replay: replay() };
+  }
+  const single = parseJsonContainer(trimmed);
+  if (single !== void 0) {
+    if (extractJsonLog(trimmed)?.level !== void 0) {
+      return { replay: replay() };
+    }
+    while (true) {
+      const next = await iterator2.next();
+      if (next.done === true) {
+        return { doc: { text: first, value: single }, replay: replay() };
+      }
+      buffered.push(next.value);
+      if (next.value.trim().length > 0) {
+        return { replay: replay() };
+      }
+    }
+  }
+  let bytes = Buffer.byteLength(first, "utf8");
+  while (true) {
+    const next = await iterator2.next();
+    if (next.done === true) {
+      break;
+    }
+    buffered.push(next.value);
+    bytes += Buffer.byteLength(next.value, "utf8") + 1;
+    if (bytes > maxBytes) {
+      return { replay: replay() };
+    }
+  }
+  const text = buffered.join("\n");
+  const value = parseJsonContainer(text);
+  if (value === void 0) {
+    return { replay: replay() };
+  }
+  return { doc: { text, value }, replay: replay() };
+}
+async function* replayLines(buffered, iterator2) {
+  yield* buffered;
+  while (true) {
+    const next = await iterator2.next();
+    if (next.done === true) {
+      return;
+    }
+    yield next.value;
+  }
+}
+function parseJsonContainer(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return void 0;
+  }
+}
+function compressJsonReport(value) {
+  const counters = {
+    duplicateEntries: 0,
+    prunedFields: 0,
+    fieldReferences: 0
+  };
+  let compressed = compressValue(value, counters);
+  const transformed = counters.duplicateEntries + counters.prunedFields + counters.fieldReferences > 0;
+  if (transformed && isPlainObject(compressed)) {
+    compressed = { [JSON_META_MARKER]: JSON_META_NOTE_MARKER, ...compressed };
+  }
+  return {
+    text: JSON.stringify(compressed, null, 2),
+    duplicateEntries: counters.duplicateEntries,
+    prunedFields: counters.prunedFields,
+    fieldReferences: counters.fieldReferences
+  };
+}
+function compressValue(value, counters) {
+  if (typeof value === "string") {
+    return sanitizeStringValue(value);
+  }
+  if (Array.isArray(value)) {
+    return compressArray(value, counters);
+  }
+  if (isPlainObject(value)) {
+    return compressObject(value, counters);
+  }
+  return value;
+}
+function compressObject(obj, counters) {
+  const result = {};
+  const earlier = [];
+  for (const [key, raw] of Object.entries(obj)) {
+    if (isEmptyJsonValue(raw)) {
+      counters.prunedFields += 1;
+      continue;
+    }
+    const compressed = compressValue(raw, counters);
+    if (typeof compressed === "string") {
+      result[key] = applyFieldReferences(compressed, earlier, counters);
+      earlier.push({ key, value: compressed });
+    } else {
+      result[key] = compressed;
+    }
+  }
+  return result;
+}
+function applyFieldReferences(text, earlier, counters) {
+  let result = text;
+  const candidates = [...earlier].sort((a, b) => b.value.length - a.value.length);
+  for (const sibling of candidates) {
+    if (sibling.value.length >= JSON_REPORT_MIN_REFERENCE_LENGTH && result.includes(sibling.value)) {
+      result = result.split(sibling.value).join(`[logstrip:= ${sibling.key}]`);
+      counters.fieldReferences += 1;
+    }
+  }
+  return result;
+}
+function compressArray(values, counters) {
+  const items = values.map((item) => compressValue(item, counters));
+  if (items.length < 2 || !items.every(isPlainObject)) {
+    return items;
+  }
+  return groupArrayEntries(items, counters);
+}
+function groupArrayEntries(items, counters) {
+  const identityKeys = findIdentityKeys(items);
+  if (identityKeys.length === Object.keys(items[0]).length) {
+    return [...items];
+  }
+  const signatureOf = (item) => JSON.stringify(
+    Object.entries(item).filter(([key]) => !identityKeys.includes(key))
+  );
+  const groups = /* @__PURE__ */ new Map();
+  const order = [];
+  for (const item of items) {
+    const signature = signatureOf(item);
+    const group = groups.get(signature);
+    if (group === void 0) {
+      groups.set(signature, [item]);
+      order.push(signature);
+    } else {
+      group.push(item);
+    }
+  }
+  if (groups.size === items.length) {
+    return [...items];
+  }
+  return order.map((signature) => {
+    const group = groups.get(signature);
+    if (group.length === 1) {
+      return group[0];
+    }
+    counters.duplicateEntries += group.length - 1;
+    return renderGroup(group, identityKeys);
+  });
+}
+function findIdentityKeys(items) {
+  const keys = Object.keys(items[0]);
+  return keys.filter((key) => {
+    const canonical = /* @__PURE__ */ new Set();
+    for (const item of items) {
+      if (!(key in item)) {
+        return false;
+      }
+      canonical.add(JSON.stringify(item[key]));
+    }
+    return canonical.size === items.length;
+  });
+}
+function renderGroup(group, identityKeys) {
+  const representative = Object.fromEntries(
+    Object.entries(group[0]).filter(([key]) => !identityKeys.includes(key))
+  );
+  if (identityKeys.length === 0) {
+    return {
+      [JSON_GROUP_MARKER]: { count: group.length },
+      ...representative
+    };
+  }
+  const variants = identityKeys.length === 1 ? group.map((item) => item[identityKeys[0]]) : group.map(
+    (item) => Object.fromEntries(identityKeys.map((key) => [key, item[key]]))
+  );
+  const capped = variants.length > JSON_REPORT_MAX_VARIANT_VALUES ? [
+    ...variants.slice(0, JSON_REPORT_MAX_VARIANT_VALUES),
+    `\u2026 +${variants.length - JSON_REPORT_MAX_VARIANT_VALUES} more`
+  ] : variants;
+  return {
+    [JSON_GROUP_MARKER]: { count: group.length, variants: capped },
+    ...representative
+  };
+}
+function sanitizeStringValue(value) {
+  return value.split("\n").map((line) => normalizeStackFrameLineCol(sanitizeLine(line))).join("\n");
+}
+function isEmptyJsonValue(value) {
+  if (value === null || value === "") {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+  if (typeof value === "object") {
+    return Object.keys(value).length === 0;
+  }
+  return false;
+}
+function isPlainObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // src/core/sanitize/pem-block.ts
@@ -28094,6 +28324,23 @@ async function processLogStream(input, output, options = {}) {
   const multilineCtx = multilineMode === "auto-source" ? createContinuationContext(multilineMode) : void 0;
   const rawLines = (0, import_node_readline.createInterface)({ input, crlfDelay: Infinity });
   const lines = readLogicalLines(rawLines, multilineMode, multilineCtx);
+  let activeLines = lines;
+  if (options.jsonReport !== false) {
+    const claim = await claimJsonDocument(
+      lines,
+      Math.max(1, Math.floor(options.jsonReportMaxBytes ?? JSON_REPORT_MAX_BYTES))
+    );
+    if (claim.doc !== void 0) {
+      return emitJsonReport(
+        claim.doc,
+        output,
+        stats,
+        detectedSourceState,
+        tokenEstimator
+      );
+    }
+    activeLines = claim.replay;
+  }
   const pendingGroups = [];
   const pendingBySignature = /* @__PURE__ */ new Map();
   let hidingInternalStack = false;
@@ -28200,7 +28447,7 @@ async function processLogStream(input, output, options = {}) {
       reason
     });
   };
-  for await (const rawLine of lines) {
+  for await (const rawLine of activeLines) {
     throwIfAborted(options.signal);
     let line = String(rawLine);
     const physicalLineCount2 = line.split("\n").length;
@@ -28532,6 +28779,44 @@ async function processLogStream(input, output, options = {}) {
     savingsPercent,
     detectedSources: rankDetectedSources(detectedSourceState),
     detectedFormat
+  };
+}
+async function emitJsonReport(doc, output, stats, detectedSourceState, tokenEstimator) {
+  let inputTokensFromEstimator = 0;
+  let outputTokensFromEstimator = 0;
+  for (const line of doc.text.split("\n")) {
+    stats.inputLines += 1;
+    stats.inputWords += countWords(line);
+    stats.inputBytes += Buffer.byteLength(`${line}
+`, "utf8");
+    collectDetectedSourceHits(line, detectedSourceState);
+    if (tokenEstimator !== void 0) {
+      inputTokensFromEstimator += estimateLineTokens(tokenEstimator, `${line}
+`);
+    }
+  }
+  const compression = compressJsonReport(doc.value);
+  for (const line of compression.text.split("\n")) {
+    if (tokenEstimator !== void 0) {
+      outputTokensFromEstimator += estimateLineTokens(tokenEstimator, `${line}
+`);
+    }
+    await writeOutputLine(output, line, stats);
+  }
+  stats.duplicateLines += compression.duplicateEntries;
+  stats.droppedLines = Math.max(0, stats.inputLines - stats.outputLines);
+  const inputTokens = tokenEstimator === void 0 ? estimateTokens(stats.inputWords) : inputTokensFromEstimator;
+  const outputTokens = tokenEstimator === void 0 ? estimateTokens(stats.outputWords) : outputTokensFromEstimator;
+  const savedTokens = Math.max(inputTokens - outputTokens, 0);
+  const savingsPercent = inputTokens === 0 ? 0 : Math.round(savedTokens / inputTokens * 1e4) / 100;
+  return {
+    stats,
+    inputTokens,
+    outputTokens,
+    savedTokens,
+    savingsPercent,
+    detectedSources: rankDetectedSources(detectedSourceState),
+    detectedFormat: "json"
   };
 }
 async function processLogFile(inputPath, outputPath, options = {}) {

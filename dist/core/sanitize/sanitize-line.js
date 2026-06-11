@@ -27,8 +27,10 @@ const CONNECTION_STRING_PATTERN = /\b(?:postgres|mysql|mongodb|redis|postgresql|
 const SLACK_TOKEN_PATTERN = /\bxox[abprs]-\d{10,12}-\d{10,12}-[A-Za-z0-9]{24,}\b/gu;
 // Authorization header (handles "Authorization: Bearer <value>" and similar)
 const AUTHORIZATION_HEADER_PATTERN = /\bAuthorization\s*:\s*\S+(?:\s+\S+)*/giu;
-// Generic secret field values in key=value or key: value format
-const SECRET_FIELD_PATTERN = /\b(?:password|secret|token|api[_-]?key|api[_-]?secret|private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|bearer)\s*[:=]\s*\S+/giu;
+// Generic secret field values in key=value or key: value format. The value
+// is either a quoted string or a bare token that stops at quotes/commas so
+// surrounding syntax (JSON string delimiters, list separators) survives.
+const SECRET_FIELD_PATTERN = /\b(?:password|secret|token|api[_-]?key|api[_-]?secret|private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|bearer)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s"',;]+)/giu;
 // Stripe API keys (sk_live_, pk_live_, rk_live_, sk_test_, etc.)
 const STRIPE_KEY_PATTERN = /\b(?:sk|pk|rk)_(?:live|test)_[0-9A-Za-z]{24,99}\b/gu;
 // npm access tokens
