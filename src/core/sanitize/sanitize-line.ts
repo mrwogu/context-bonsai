@@ -48,9 +48,11 @@ const SLACK_TOKEN_PATTERN =
 const AUTHORIZATION_HEADER_PATTERN =
   /\bAuthorization\s*:\s*\S+(?:\s+\S+)*/giu;
 
-// Generic secret field values in key=value or key: value format
+// Generic secret field values in key=value or key: value format. The value
+// is either a quoted string or a bare token that stops at quotes/commas so
+// surrounding syntax (JSON string delimiters, list separators) survives.
 const SECRET_FIELD_PATTERN =
-  /\b(?:password|secret|token|api[_-]?key|api[_-]?secret|private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|bearer)\s*[:=]\s*\S+/giu;
+  /\b(?:password|secret|token|api[_-]?key|api[_-]?secret|private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|bearer)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s"',;]+)/giu;
 
 // Stripe API keys (sk_live_, pk_live_, rk_live_, sk_test_, etc.)
 const STRIPE_KEY_PATTERN =

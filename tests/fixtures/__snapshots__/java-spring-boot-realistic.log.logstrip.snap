@@ -4,9 +4,9 @@
 [TIME]  WARN 181 --- [checkout-api] [nio-8080-exec-3] c.e.checkout.inventory.InventoryClient   : retrying reservation sku=SKU-422 attempt=2 after timeout requestId=[ID]
 [TIME] ERROR 181 --- [checkout-api] [nio-8080-exec-3] c.e.checkout.web.CheckoutController      : Checkout request failed orderId=ord-88421 requestId=[ID]
 [x2] java.lang.IllegalStateException: Inventory reservation failed for order [ID]
-    at com.example.checkout.inventory.InventoryClient.reserve(InventoryClient.java:[NN]))
-    at com.example.checkout.service.CheckoutService.placeOrder(CheckoutService.java:[NN]))
-    at com.example.checkout.web.CheckoutController.checkout(CheckoutController.java:[NN]))
+    at com.example.checkout.inventory.InventoryClient.reserve(InventoryClient.java:[NN])
+    at com.example.checkout.service.CheckoutService.placeOrder(CheckoutService.java:[NN])
+    at com.example.checkout.web.CheckoutController.checkout(CheckoutController.java:[NN])
 [... hidden internal library frames ...]
 Caused by: java.net.SocketTimeoutException: Read timed out
 [... hidden internal library frames ...]

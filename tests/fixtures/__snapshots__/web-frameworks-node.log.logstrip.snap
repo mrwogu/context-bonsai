@@ -2,7 +2,7 @@
 [... hidden internal library frames ...]
 [ERROR] fastify FST_ERR_CTR_INITIALIZER: plugin initialization failed
 [... hidden internal library frames ...]
-    at process._tickCallback (node:internal/process/next_tick:[NN]))
+    at process._tickCallback (node:internal/process/next_tick:[NN])
 [ERROR] @nestjs/core NestError: Circular dependency detected between AuthService and UserService
 [... hidden internal library frames ...]
 [ERROR] next build Error: Cannot resolve dependency 'react-dom/client'
