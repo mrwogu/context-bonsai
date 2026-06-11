@@ -163,38 +163,6 @@ body,
   animation: logstrip-pulse 1.8s ease-in-out infinite;
 }
 
-.md-typeset .logstrip-hero__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0 0 0.85rem;
-  padding: 0.22rem 0.65rem;
-  border: 1px solid rgba(244, 231, 161, 0.35);
-  border-radius: 999px;
-  background: rgba(244, 231, 161, 0.08);
-  color: #f4e7a1;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: lowercase;
-  text-decoration: none;
-  transition: border-color 0.25s ease, background 0.25s ease;
-}
-
-.md-typeset .logstrip-hero__badge:hover,
-.md-typeset .logstrip-hero__badge:focus {
-  border-color: rgba(244, 231, 161, 0.7);
-  background: rgba(244, 231, 161, 0.16);
-  color: #f4e7a1;
-}
-
-[data-md-color-scheme='default'] .md-typeset .logstrip-hero__badge {
-  border-color: rgba(146, 110, 5, 0.4);
-  background: rgba(146, 110, 5, 0.08);
-  color: #7a5c03;
-}
-
 .md-typeset .logstrip-hero h1 {
   max-width: 16ch;
   margin: 0;
@@ -1410,6 +1378,12 @@ html {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
   margin-top: 1rem;
+}
+
+/* When the step count leaves a lone item in the last row, stretch it
+   across the full width so it reads as a deliberate closing step. */
+.logstrip-engine__step:last-child:nth-child(3n + 1) {
+  grid-column: 1 / -1;
 }
 
 .logstrip-engine__step {
