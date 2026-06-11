@@ -44,4 +44,10 @@ describe('stackWindowSignature', () => {
       normalizeStackFrameLineCol('    at fn (/a/b.ts:42:18)'),
     ).toContain(':[NN]:[NN])');
   });
+
+  it('normalizes Java frames without doubling the closing paren', () => {
+    expect(
+      normalizeStackFrameLineCol('    at com.example.Foo.bar(Foo.java:42)'),
+    ).toBe('    at com.example.Foo.bar(Foo.java:[NN])');
+  });
 });

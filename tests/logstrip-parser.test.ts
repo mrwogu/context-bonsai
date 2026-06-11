@@ -809,6 +809,20 @@ describe('logstrip parser', () => {
     expect(sanitizeLine('arn:aws:s3:us-east-1:123456789012:bucket/object')).toBe('arn:aws:s3:us-east-1:[ACCOUNT]:bucket/object');
   });
 
+  it('stops secret-field masking at quotes and separators', () => {
+    // A bare value inside a JSON string must not swallow the closing quote
+    expect(sanitizeLine('containing request token: PATCH_/b2b/customers/51001",')).toBe(
+      'containing request token: [REDACTED]",',
+    );
+    // Quoted values are masked whole, including the quotes
+    expect(sanitizeLine('password: "hunter two"')).toBe('password: [REDACTED]');
+    expect(sanitizeLine("token='abc 123'")).toBe('token=[REDACTED]');
+    // Comma-separated key=value pairs keep their separators
+    expect(sanitizeLine('retries=3, token=abc123def, mode=ci')).toBe(
+      'retries=3, token=[REDACTED], mode=ci',
+    );
+  });
+
   it('sanitizes IPv6 addresses, emails, and additional secret tokens', () => {
     // IPv6 (full form)
     expect(sanitizeLine('from 2001:db8:85a3:0:0:8a2e:370:7334')).toBe('from [IPV6]');

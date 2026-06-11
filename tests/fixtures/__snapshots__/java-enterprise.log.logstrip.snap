@@ -1,26 +1,26 @@
 [ERROR] tomcat HTTP Status [HTTP 5xx] - Internal Server Error
-    at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:[NN]))
-    at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:[NN]))
-    at org.apache.coyote.http11.Http11Processor.process(Http11Processor.java:[NN]))
-    at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:[NN]))
+    at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:[NN])
+    at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:[NN])
+    at org.apache.coyote.http11.Http11Processor.process(Http11Processor.java:[NN])
+    at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:[NN])
 [ERROR] jetty.server IOException: Cannot read request body
-    at org.eclipse.jetty.server.HttpConnection.read(HttpConnection.java:[NN]))
-    at org.eclipse.jetty.io.AbstractConnection.read(AbstractConnection.java:[NN]))
+    at org.eclipse.jetty.server.HttpConnection.read(HttpConnection.java:[NN])
+    at org.eclipse.jetty.io.AbstractConnection.read(AbstractConnection.java:[NN])
 [ERROR] wildfly Deployment failed: WFLYCTL0199: Failed to deploy checkout-service.war
-    at org.jboss.as.controller.client.helpers.standalone.impl.ServerDeploymentActionResult.getServerResult(ServerDeploymentActionResult.java:[NN]))
+    at org.jboss.as.controller.client.helpers.standalone.impl.ServerDeploymentActionResult.getServerResult(ServerDeploymentActionResult.java:[NN])
 [ERROR] glassfish server SEVERE: Exception while loading the app
-    at com.sun.enterprise.v3.server.ApplicationLifecycle.doStart(ApplicationLifecycle.java:[NN]))
+    at com.sun.enterprise.v3.server.ApplicationLifecycle.doStart(ApplicationLifecycle.java:[NN])
 [ERROR] micronaut startup Error: No bean of type [CheckoutService] exists
-    at io.micronaut.context.DefaultBeanContext.getBean(DefaultBeanContext.java:[NN]))
+    at io.micronaut.context.DefaultBeanContext.getBean(DefaultBeanContext.java:[NN])
 [ERROR] quarkus build Failed: Unresolved dependency: io.quarkus:quarkus-agroal
-    at io.quarkus.deployment.pkg.steps.NativeImageBuildStep.build(NativeImageBuildStep.java:[NN]))
+    at io.quarkus.deployment.pkg.steps.NativeImageBuildStep.build(NativeImageBuildStep.java:[NN])
 [ERROR] io.vertx.core.VertxException: Timeout waiting for event bus reply
-    at io.vertx.core.eventbus.impl.HandlerRegistration.sendAsyncResult(HandlerRegistration.java:[NN]))
+    at io.vertx.core.eventbus.impl.HandlerRegistration.sendAsyncResult(HandlerRegistration.java:[NN])
 [ERROR] helidon se server Error: Connection refused to database [IP]:[PORT]
-    at io.helidon.dbclient.DbClient.execute(DbClient.java:[NN]))
+    at io.helidon.dbclient.DbClient.execute(DbClient.java:[NN])
 [ERROR] org.apache.log4j FATAL: Cannot write to log file /var/log/app/server.log
-    at org.apache.log4j.FileAppender.setFile(FileAppender.java:[NN]))
+    at org.apache.log4j.FileAppender.setFile(FileAppender.java:[NN])
 [ERROR] org.slf4j LoggerFactory failed to initialize: java.lang.NoClassDefFoundError: ch/qos/logback/classic/spi/LogbackServiceProvider
-    at org.slf4j.LoggerFactory.bind(LoggerFactory.java:[NN]))
+    at org.slf4j.LoggerFactory.bind(LoggerFactory.java:[NN])
 [x3] [ERROR] [TIME] tomcat Error: ServletException processing request [ID] on /api/checkout from [IP]:[PORT]
 [FATAL] [TIME] wildfly JVM heap exhausted: OutOfMemoryError: Java heap space commit=[HASH]
