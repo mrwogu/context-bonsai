@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.12.0](https://github.com/mrwogu/logstrip/compare/v1.11.0...v1.12.0) (2026-06-11)
+
+
+### Features
+
+* **core:** auto-detect and semantically compress JSON report documents ([f1a046e](https://github.com/mrwogu/logstrip/commit/f1a046edef701f43972243f5da8653a01d4167aa))
+
+
+### Bug Fixes
+
+* **core:** stop secret mask at quotes, fix Java frame paren doubling ([d417006](https://github.com/mrwogu/logstrip/commit/d417006dc004218d62aa0b3396a6f3968bac5898))
+
 ## [1.11.0](https://github.com/mrwogu/logstrip/compare/v1.10.0...v1.11.0) (2026-06-11)
 
 
