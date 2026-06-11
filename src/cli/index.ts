@@ -21,7 +21,7 @@ import {
 import { runHookCommand } from './hook-runner';
 import { checkForUpdates, formatUpdateNotification } from './version-check';
 
-export const CLI_VERSION = '1.10.0'; // x-release-please-version
+export const CLI_VERSION = '1.11.0'; // x-release-please-version
 
 export const HOOK_SUBCOMMAND = 'hook';
 

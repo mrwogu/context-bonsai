@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.11.0](https://github.com/mrwogu/logstrip/compare/v1.10.0...v1.11.0) (2026-06-11)
+
+
+### Features
+
+* **cli:** add --max-stack-frames and --no-template-mining ([ac733dd](https://github.com/mrwogu/logstrip/commit/ac733dda2ee0d56c28bdf3f81ea9e49d8283ff37))
+* **dedupe:** template mining for near-identical lines ([40678ac](https://github.com/mrwogu/logstrip/commit/40678ac6438d9260c0823c59255b4d2a0e4fe2e3))
+* **formats:** re-elect detected format on mid-stream drift ([f6f900a](https://github.com/mrwogu/logstrip/commit/f6f900af07e347d96aaf8ce0462830c8ec43281d))
+* **parser:** truncate long app stacks, wire new pipeline options ([2f9c569](https://github.com/mrwogu/logstrip/commit/2f9c569e1f539c8a0340084ab58f74b21c06900c))
+* **sanitize:** mask high-entropy tokens as secret fallback ([658bf98](https://github.com/mrwogu/logstrip/commit/658bf98da71da1a81c0322454962e4ace3e1a108))
+* **scoring:** compound exceptions, polyglot frames, rarity boost ([b3b896c](https://github.com/mrwogu/logstrip/commit/b3b896cb75f9c73a1fc52862fcf0db227f01bff9))
+
+
+### Performance Improvements
+
+* **dedupe:** conservative update in Count-Min Sketch ([34f4249](https://github.com/mrwogu/logstrip/commit/34f424931b762f23751d8f5c1247f00beee1bb88))
+
 ## [1.10.0](https://github.com/mrwogu/logstrip/compare/v1.9.0...v1.10.0) (2026-06-08)
 
 
