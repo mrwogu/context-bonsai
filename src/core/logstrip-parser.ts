@@ -18,6 +18,7 @@ import {
   CONTEXT_WINDOW_AFTER,
   CONTEXT_WINDOW_BEFORE,
   DEFAULT_FORMAT_SAMPLE,
+  DEFAULT_MAX_STACK_FRAMES,
   INTERNAL_STACK_MARKER,
   SCORE_KEEP_THRESHOLD,
   TFIDF_PENALTY,
@@ -61,6 +62,7 @@ import { detectFormat } from './formats/format-detector.js';
 import {
   createFormatVoter,
   decideFormat,
+  observeFormatDrift,
   voteFormat,
 } from './formats/format-voter.js';
 import { scoreJsonLine } from './formats/json-line-extractor.js';
@@ -85,6 +87,7 @@ import {
   isIgnoredLogLine,
   isInternalStackTraceLine,
   isProgressBarLine,
+  isStackFrameLine,
   scoreLineRelevance,
 } from './scoring/relevance-score.js';
 import { LOG_SOURCE_SIGNATURES } from './sources/catalog.js';
@@ -106,16 +109,21 @@ export type { SeverityLevel } from './severity/severity-filter.js';
 export { detectFormat } from './formats/format-detector.js';
 export {
   type FormatVoter,
+  FORMAT_DRIFT_THRESHOLD,
   createFormatVoter,
   decideFormat,
+  observeFormatDrift,
   voteFormat,
 } from './formats/format-voter.js';
 export { parseAggressiveness } from './aggressiveness/levels.js';
 export {
   CONTEXT_WINDOW_AFTER,
   CONTEXT_WINDOW_BEFORE,
+  DEFAULT_MAX_STACK_FRAMES,
   INTERNAL_STACK_MARKER,
   MAX_REPEAT_DELTA_VALUES,
+  RARITY_BOOST,
+  RARITY_MIN_INPUT_LINES,
   SCORE_KEEP_THRESHOLD,
   TFIDF_MAP_LIMIT,
   TFIDF_PENALTY,
@@ -155,6 +163,12 @@ export {
 } from './dedupe/block-deduper.js';
 export { sanitizeLine } from './sanitize/sanitize-line.js';
 export {
+  ENTROPY_MIN_TOKEN_LENGTH,
+  ENTROPY_SECRET_THRESHOLD,
+  maskHighEntropyTokens,
+  shannonEntropy,
+} from './sanitize/entropy-secret.js';
+export {
   createPemBlockState,
   maskPemBlock,
   type PemBlockState,
@@ -165,6 +179,7 @@ export {
   isInternalStackTraceLine,
   isCiNoiseLine,
   isProgressBarLine,
+  isStackFrameLine,
   looksLikeDiagnosticLine,
   scoreLineRelevance,
   shouldKeepLine,
@@ -340,9 +355,22 @@ export async function processLogStream(
   // Behavioral detection/compression boosters are ON by default in auto mode;
   // pass the matching option explicitly as false (CLI: --no-*) to disable.
   const collapseRepeatedStacks = options.collapseRepeatedStacks !== false;
+  // Template mining: near-identical lines differing only in a number after a
+  // generic word label fold into one [xN] group with a delta list.
+  const templateMining = options.templateMining !== false;
+  const baseRepeatSignature = (line: string): string =>
+    createRepeatSignature(line, templateMining);
   const repeatSignature = collapseRepeatedStacks
-    ? (line: string): string => stackWindowSignature(line) ?? createRepeatSignature(line)
-    : createRepeatSignature;
+    ? (line: string): string => stackWindowSignature(line) ?? baseRepeatSignature(line)
+    : baseRepeatSignature;
+  // App-stack truncation: cap consecutive application stack frames per trace.
+  const maxStackFrames =
+    options.maxStackFrames !== undefined
+      ? Math.floor(options.maxStackFrames)
+      : DEFAULT_MAX_STACK_FRAMES;
+  const stackFramesLimited = maxStackFrames > 0;
+  let appStackRun = 0;
+  let truncatedAppFrames = 0;
   // Sliding dedup window: 1 = adjacent-only (default), >1 collapses
   // non-adjacent duplicates seen within the last N distinct lines.
   const dedupeWindowSize = Math.max(1, Math.floor(options.dedupeWindow ?? 1));
@@ -412,6 +440,8 @@ export async function processLogStream(
   const rawLines = createInterface({ input, crlfDelay: Infinity });
   const lines = readLogicalLines(rawLines, multilineMode, multilineCtx);
   const pendingGroups: RepeatGroup[] = [];
+  // Signature index over pendingGroups so wide --dedupe-window stays O(1).
+  const pendingBySignature = new Map<string, RepeatGroup>();
   let hidingInternalStack = false;
   let detectedFormat: string | undefined;
   let outputLineCount = 0;
@@ -464,9 +494,15 @@ export async function processLogStream(
     await emitOutputLine(line, group.score);
   };
 
+  const shiftPendingGroup = (): RepeatGroup => {
+    const group = pendingGroups.shift()!;
+    pendingBySignature.delete(group.signature);
+    return group;
+  };
+
   const flushPendingGroups = async (): Promise<void> => {
     while (pendingGroups.length > 0) {
-      await flushGroup(pendingGroups.shift()!);
+      await flushGroup(shiftPendingGroup());
     }
   };
 
@@ -478,15 +514,17 @@ export async function processLogStream(
     }
 
     const signature = repeatSignature(line);
-    const existing = pendingGroups.find((group) => group.signature === signature);
+    const existing = pendingBySignature.get(signature);
     if (existing !== undefined) {
-      addRepeatGroupLine(existing, line, score);
+      addRepeatGroupLine(existing, line, score, templateMining);
       return;
     }
 
-    pendingGroups.push(createRepeatGroup(line, score, signature));
+    const group = createRepeatGroup(line, score, signature);
+    pendingGroups.push(group);
+    pendingBySignature.set(signature, group);
     if (pendingGroups.length > dedupeWindowSize) {
-      await flushGroup(pendingGroups.shift()!);
+      await flushGroup(shiftPendingGroup());
     }
   };
 
@@ -501,6 +539,17 @@ export async function processLogStream(
     }
 
     contextBefore.length = 0;
+  };
+
+  // Emit the pending app-stack truncation marker (frames beyond
+  // maxStackFrames collapse into a single count line).
+  const flushStackTruncation = async (): Promise<void> => {
+    if (truncatedAppFrames === 0) {
+      return;
+    }
+    const marker = `[... ${truncatedAppFrames} more application stack frames ...]`;
+    truncatedAppFrames = 0;
+    await emitCandidate(marker, SCORE_KEEP_THRESHOLD);
   };
 
   // Open the context window for a kept error: flush the before-context, open
@@ -564,6 +613,11 @@ export async function processLogStream(
           formatVoteApplied = true;
           if (voted !== undefined) detectedFormat = voted;
         }
+      } else {
+        // Mid-stream drift: a sustained run of differently-formatted lines
+        // (e.g. plaintext boot output then JSON) re-elects the format.
+        const drifted = observeFormatDrift(formatVoter, line);
+        if (drifted !== undefined) detectedFormat = drifted;
       }
     }
 
@@ -674,6 +728,8 @@ export async function processLogStream(
       stats.hiddenInternalStackLines += physicalLineCount;
 
       if (!hidingInternalStack) {
+        appStackRun = 0;
+        await flushStackTruncation();
         await flushContextBefore();
         await emitCandidate(INTERNAL_STACK_MARKER, SCORE_KEEP_THRESHOLD);
         hidingInternalStack = true;
@@ -744,6 +800,7 @@ export async function processLogStream(
       sanitized,
       effectiveAggressiveness,
       seenCount,
+      stats.inputLines,
     );
 
     // Custom diagnostic patterns contribute +50 per match (same as built-in DIAGNOSTIC_PATTERN)
@@ -759,6 +816,30 @@ export async function processLogStream(
     score += scoreSourceDiagnosticBoost(sanitized, detectedSourceState, stats.inputLines);
 
     if (score >= SCORE_KEEP_THRESHOLD) {
+      // App-stack truncation: keep the first maxStackFrames consecutive
+      // frames of a trace, collapse the rest into a single count marker.
+      if (stackFramesLimited && isStackFrameLine(sanitized)) {
+        appStackRun += 1;
+        if (appStackRun > maxStackFrames) {
+          truncatedAppFrames += 1;
+          stats.droppedLines += physicalLineCount;
+          recordDecision({
+            line,
+            sanitizedLine: sanitized,
+            kept: false,
+            dropped: true,
+            hardKeep: false,
+            repeated: seenCount > 1,
+            reason: 'stack-truncated',
+            score,
+          });
+          continue;
+        }
+      } else {
+        appStackRun = 0;
+        await flushStackTruncation();
+      }
+
       // Hard keep: flush buffered context, emit, open after-context window
       await openContextWindow();
       await emitCandidate(sanitized, score);
@@ -852,6 +933,9 @@ export async function processLogStream(
       });
     }
   }
+
+  // A trace truncated at end-of-stream still gets its count marker.
+  await flushStackTruncation();
 
   // Context lines left without a triggering error are discarded
   stats.droppedLines += contextBefore.length;
