@@ -9,3 +9,7 @@ dist/**/*.d.ts
 *.tgz
 .code-review-graph
 test-review-data.json
+
+# Local preview artifacts
+.playwright-mcp/
+logstrip-hero-*.png
