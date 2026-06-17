@@ -17,6 +17,11 @@ description: Free, zero-dependency CLI that compresses noisy logs into high-sign
   <a class="logstrip-button" href="getting-started/">install the cli</a>
   <a class="logstrip-button logstrip-button--ghost" href="guides/plugins/">agent plugins</a>
 </div>
+
+<div class="logstrip-badges">
+  <a href="https://www.npmjs.com/package/logstrip"><img src="https://img.shields.io/npm/v/logstrip" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/logstrip"><img src="https://img.shields.io/npm/dm/logstrip" alt="npm downloads per month"></a>
+</div>
 </div>
 
 <div class="logstrip-demo logstrip-demo--toggle" data-logstrip-compare aria-label="Interactive raw-to-LogStrip terminal comparison">

@@ -247,6 +247,19 @@ body,
   transform: translateY(-1px);
 }
 
+.md-typeset .logstrip-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.md-typeset .logstrip-badges img {
+  display: block;
+  height: 1.25rem;
+  width: auto;
+}
+
 /* ------------------------------------------------------------------------- *
  * HERO DEMO (toggle terminal)
  * ------------------------------------------------------------------------- */
