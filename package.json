@@ -76,7 +76,7 @@
   "devDependencies": {
     "@actions/core": "^1.11.1",
     "@actions/github": "^9.1.1",
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.0.1",
     "@vitest/coverage-v8": "^4.1.6",
     "esbuild": "^0.28.0",
     "typescript": "^5.7.2",
