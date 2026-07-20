@@ -61,7 +61,7 @@ jobs:
 
       - name: Setup Python for docs
         if: ${{ matrix.node-version == '22.x' && matrix.os == 'ubuntu-latest' }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: pip
